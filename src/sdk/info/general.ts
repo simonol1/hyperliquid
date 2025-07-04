@@ -35,7 +35,7 @@ import {
 import { HttpApi } from '../../utils/helpers';
 import { SymbolConversion } from '../../utils/symbolConversion';
 import { InfoType } from '../../types/constants';
-import { Hyperliquid } from '../../index';
+import { Hyperliquid } from '../index';
 
 export class GeneralInfoAPI {
   private parent: Hyperliquid;

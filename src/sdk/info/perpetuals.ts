@@ -11,7 +11,7 @@ import {
 import { HttpApi } from '../../utils/helpers';
 import { InfoType } from '../../types/constants';
 import { SymbolConversion } from '../../utils/symbolConversion';
-import { Hyperliquid } from '../../index';
+import { Hyperliquid } from '../index';
 
 export class PerpetualsInfoAPI {
   private httpApi: HttpApi;

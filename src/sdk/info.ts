@@ -4,7 +4,7 @@ import { SpotInfoAPI } from './info/spot';
 import { PerpetualsInfoAPI } from './info/perpetuals';
 import { HttpApi } from '../utils/helpers';
 import { SymbolConversion } from '../utils/symbolConversion';
-import { Hyperliquid } from '../index';
+import { Hyperliquid } from './index';
 
 import {
   AllMids,

@@ -1,18 +1,18 @@
-import { InfoAPI } from './rest/info';
-import { ExchangeAPI } from './rest/exchange';
-import { WebSocketClient } from './websocket/connection';
-import { WebSocketSubscriptions } from './websocket/subscriptions';
+import { InfoAPI } from './info';
+import { ExchangeAPI } from './exchange';
+import { WebSocketClient } from '../websocket/connection';
+import { WebSocketSubscriptions } from '../websocket/subscriptions';
 import {
   WebSocketPayloadManager,
   createWebSocketPayloadManager,
-} from './websocket/payload-manager';
-import { RateLimiter } from './utils/rateLimiter';
-import * as CONSTANTS from './types/constants';
-import { CustomOperations } from './rest/custom';
+} from '../websocket/payload-manager';
+import { RateLimiter } from '../utils/rateLimiter';
+import * as CONSTANTS from '../types/constants';
+import { CustomOperations } from './custom';
 import { ethers } from 'ethers';
-import { SymbolConversion } from './utils/symbolConversion';
-import { AuthenticationError } from './utils/errors';
-import { environment } from './utils/environment';
+import { SymbolConversion } from '../utils/symbolConversion';
+import { AuthenticationError } from '../utils/errors';
+import { environment } from '../utils/environment';
 
 export interface HyperliquidConfig {
   enableWs?: boolean;
@@ -314,6 +314,6 @@ export class Hyperliquid {
   }
 }
 
-export * from './types';
-export * from './utils/signing';
-export * from './types/constants';
+export * from '../types';
+export * from '../utils/signing';
+export * from '../types/constants';

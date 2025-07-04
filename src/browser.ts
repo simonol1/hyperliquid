@@ -1,5 +1,5 @@
 // Browser-specific entry point
-import { Hyperliquid } from './index';
+import { Hyperliquid } from './sdk/index';
 import { environment } from './utils/environment';
 
 // Ensure we're in a browser environment

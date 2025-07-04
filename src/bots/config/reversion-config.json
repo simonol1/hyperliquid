@@ -1,0 +1,34 @@
+{
+  "strategy": "reversion",
+  "coins": [
+    "BTC-PERP",
+    "ETH-PERP",
+    "SOL-PERP",
+    "MATIC-PERP",
+    "LINK-PERP",
+    "HYPE-PERP"
+  ],
+  "loopIntervalMs": 60000,
+  "timeframe": "1h",
+  "emaSlowPeriod": 200,
+  "rsiPeriod": 14,
+  "macdFastPeriod": 12,
+  "macdSlowPeriod": 26,
+  "macdSignalPeriod": 9,
+  "rsiOverboughtThreshold": 70,
+  "rsiOversoldThreshold": 30,
+  "trailingStopPct": 0.5,
+  "initialTakeProfitPct": 1.5,
+  "maxCapitalRiskUsd": 500,
+  "leverage": 3,
+  "riskMapping": {
+    "minScore": 60,
+    "goldenScore": 95,
+    "minCapitalRiskPct": 0.02,
+    "maxCapitalRiskPct": 0.10,
+    "minLeverage": 3,
+    "maxLeverage": 10
+  },
+  "maxConcurrentTrades": 3,
+  "walletAddress": "0x0e788433e39ae49572f5da16b951b61b030b7761"
+}

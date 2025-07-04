@@ -1,7 +1,7 @@
 {
   "name": "hyperliquid",
   "version": "1.7.6",
-  "description": "SDK for Hyperliquid API",
+  "description": "Hyperliquid bots and API client for trading on Hyperliquid exchange",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -24,11 +24,10 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "prebuild": "npm run format",
     "build": "tsup",
     "test": "jest",
     "prepare": "node -e \"if (process.env.NODE_ENV !== 'production' && require('fs').existsSync('.git')) { require('child_process').execSync('npm run build', {stdio: 'inherit'}) }\"",
-    "test:node": "node examples/node-test.js",
+    "start": "node dist/index.js",
     "test:browser": "npx serve -s . -p 3000",
     "test:all": "npm run build && npm run test:node && echo '\nTo test in browser, run: npm run test:browser and visit http://localhost:3000/examples/browser-test.html'",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
@@ -56,10 +55,11 @@
     "axios": "^1.7.2",
     "dotenv": "^16.5.0",
     "ethers": "^6.13.2",
-    "ws": "^8.18.2"
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
+    "esbuild": "^0.25.5",
     "husky": "^9.1.7",
     "jest": "^29.0.0",
     "lint-staged": "^15.5.1",

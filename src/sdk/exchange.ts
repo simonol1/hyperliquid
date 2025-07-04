@@ -48,7 +48,7 @@ import {
 
 import { ExchangeType, ENDPOINTS, CHAIN_IDS } from '../types/constants';
 import { SymbolConversion } from '../utils/symbolConversion';
-import { Hyperliquid } from '../index';
+import { Hyperliquid } from './index';
 
 // const IS_MAINNET = true; // Make sure this matches the IS_MAINNET in signing.ts
 

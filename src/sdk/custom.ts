@@ -8,7 +8,7 @@ import { OrderResponse, CancelOrderRequest, OrderRequest, OrderType } from '../t
 import { CancelOrderResponse } from '../utils/signing';
 import { SymbolConversion } from '../utils/symbolConversion';
 import { floatToWire } from '../utils/signing';
-import { Hyperliquid } from '../index';
+import { Hyperliquid } from './index';
 
 export class CustomOperations {
   private exchange: ExchangeAPI;

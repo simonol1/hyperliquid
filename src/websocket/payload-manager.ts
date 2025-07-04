@@ -9,7 +9,7 @@
 import { ethers } from 'ethers';
 import { PayloadGenerator, PayloadGenerationContext } from './payload-generator';
 import { WebSocketSubscriptions } from './subscriptions';
-import { CustomOperations } from '../rest/custom';
+import { CustomOperations } from '../sdk/custom';
 import { SymbolConversion } from '../utils/symbolConversion';
 
 export interface PayloadManagerConfig {

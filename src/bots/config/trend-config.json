@@ -1,0 +1,36 @@
+{
+  "strategy": "trend",
+  "coins": [
+    "BTC-PERP",
+    "ETH-PERP",
+    "SOL-PERP",
+    "HYPE-PERP",
+    "LINK-PERP",
+    "MATIC-PERP"
+  ],
+  "loopIntervalMs": 60000,
+  "timeframe": "1h",
+  "emaFastPeriod": 20,
+  "emaMediumPeriod": 50,
+  "emaSlowPeriod": 200,
+  "rsiPeriod": 14,
+  "macdFastPeriod": 12,
+  "macdSlowPeriod": 26,
+  "macdSignalPeriod": 9,
+  "rsiOverboughtThreshold": 70,
+  "rsiOversoldThreshold": 30,
+  "trailingStopPct": 0.5,
+  "initialTakeProfitPct": 2.0,
+  "maxCapitalRiskUsd": 50,
+  "leverage": 3,
+  "riskMapping": {
+    "minScore": 60,
+    "goldenScore": 95,
+    "minCapitalRiskPct": 0.02,
+    "maxCapitalRiskPct": 0.10,
+    "minLeverage": 3,
+    "maxLeverage": 10
+  },
+  "maxConcurrentTrades": 3,
+  "walletAddress": "0xd380aafee4cb8f6d3fbb4480d7c808fa60c12055"
+}
