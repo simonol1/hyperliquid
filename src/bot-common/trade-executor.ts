@@ -1,8 +1,9 @@
-import { logInfo, logError, logTrade, logExit } from './utils/logger.js';
+import { logInfo, logError, logExit } from './utils/logger.js';
 import { stateManager } from './state-manager.js';
 import type { Hyperliquid } from '../sdk/index.js';
-import { Analysis } from './analyse-asset.js';
-import { BotConfig } from '../bots/config/bot-config.js';
+import type { Analysis } from './analyse-asset.js';
+import type { BotConfig } from '../bots/config/bot-config.js';
+import { checkRiskGuards } from './utils/risk-guards.js';
 
 // === TYPES ===
 
@@ -26,6 +27,10 @@ export interface Position {
   takeProfitTarget?: number;
 }
 
+// === CONSTANTS ===
+
+const DEFAULT_MAX_SLIPPAGE_PCT = 0.002; // 0.2%
+
 // === PLACE ORDER ===
 
 export const placeOrder = async (
@@ -38,16 +43,16 @@ export const placeOrder = async (
 ): Promise<void> => {
   const px = isBuy ? limitPrice * 1.01 : limitPrice * 0.99;
 
-  console.log(
-    `[DEBUG] Placing order | coin=${coin} isBuy=${isBuy} size=${size} limitPrice=${px} reduceOnly=${reduceOnly}`
+  logInfo(
+    `[TradeExecutor] Placing IOC → coin=${coin} isBuy=${isBuy} size=${size} limitPrice=${px.toFixed(4)} reduceOnly=${reduceOnly}`
   );
 
   await hyperliquid.exchange.placeOrder({
-    coin: coin,
+    coin,
     is_buy: isBuy,
     sz: size,
-    limit_px: px,
-    order_type: { limit: { tif: 'Ioc' } }, // Immediate Or Cancel
+    limit_px: px.toString(),
+    order_type: { limit: { tif: 'Ioc' } }, // simulate market
     reduce_only: reduceOnly,
   });
 };
@@ -55,46 +60,67 @@ export const placeOrder = async (
 // === ENTRY ===
 
 export const executeEntry = async (
-  hyperliquid: any,
+  hyperliquid: Hyperliquid,
+  walletAddress: string,
   coin: string,
   entryPrice: number,
   capitalRiskUsd: number,
   leverage: number,
   side: 'BUY' | 'SELL',
-) => {
+  strategy: 'breakout' | 'trend' | 'reversion'
+): Promise<void> => {
 
-  if (process.env.DRY_RUN === 'true') {
-    console.log(`[DryRun] Would place order → ${coin} ${side} $${capitalRiskUsd} @ ${entryPrice}x${leverage}`);
+  const canTrade = await checkRiskGuards(hyperliquid, walletAddress)
+
+  if (!canTrade) {
+    logInfo(`[TradeExecutor] Risk guards failed, skipping entry for ${coin}`);
     return;
   }
 
-  try {
-    const positionValueUsd = capitalRiskUsd * leverage;
-    const qty = Number((positionValueUsd / entryPrice).toFixed(6));
+  if (process.env.DRY_RUN === 'true') {
+    logInfo(
+      `[DryRun] Would place entry → ${coin} ${side} $${capitalRiskUsd} @ ${entryPrice} x${leverage}`
+    );
+    return;
+  }
 
-    const order = {
-      coin: coin,
+  const positionValueUsd = capitalRiskUsd * leverage;
+  const qty = Number((positionValueUsd / entryPrice).toFixed(6));
+
+  if (strategy === 'reversion') {
+    // Proper limit order: GTC
+    const px = entryPrice;
+    logInfo(
+      `[TradeExecutor] Placing LIMIT GTC → ${coin} ${side} qty=${qty} px=${px} lev=${leverage}x`
+    );
+    await hyperliquid.exchange.placeOrder({
+      coin,
       is_buy: side === 'BUY',
       sz: qty,
-      limit_px: entryPrice.toString(),
+      limit_px: px.toString(),
       order_type: { limit: { tif: 'Gtc' } },
       reduce_only: false,
-    };
+    });
+  } else {
+    // Simulated market order: limit IOC with slippage guard
+    const px = side === 'BUY'
+      ? entryPrice * (1 + DEFAULT_MAX_SLIPPAGE_PCT)
+      : entryPrice * (1 - DEFAULT_MAX_SLIPPAGE_PCT);
 
     logInfo(
-      `[TradeExecutor] Placing entry → ${coin} | Side: ${side} | USD: ${positionValueUsd.toFixed(2)} | Qty: ${qty} | Px: ${entryPrice} | Leverage: ${leverage}x`
+      `[TradeExecutor] Placing IOC (simulated MARKET) → ${coin} ${side} qty=${qty} px=${px} lev=${leverage}x`
     );
 
-    const result = await hyperliquid.exchange.placeOrder(order);
-
-    logInfo(`[TradeExecutor] Order result → ${JSON.stringify(result)}`);
-
-  } catch (err: any) {
-    logError(`[TradeExecutor] executeEntry failed: ${err.message}`);
-    throw err;
+    await hyperliquid.exchange.placeOrder({
+      coin,
+      is_buy: side === 'BUY',
+      sz: qty,
+      limit_px: px.toString(),
+      order_type: { limit: { tif: 'Ioc' } },
+      reduce_only: false,
+    });
   }
-}
-
+};
 
 // === EXIT ===
 
@@ -110,6 +136,17 @@ export const executeExit = async (
     price: exitIntent.price,
     reason: exitIntent.reason,
   });
+
+  const position = stateManager.getActivePosition(coin);
+  if (position) {
+    const entry = position.entryPrice;
+    const pnl = (exitIntent.price - entry) * exitIntent.quantity * (position.isShort ? -1 : 1);
+    if (pnl < 0) {
+      stateManager.addLoss(Math.abs(pnl));
+    } else {
+      stateManager.addProfit(pnl);
+    }
+  }
 
   stateManager.removeActivePosition(coin);
 };
@@ -137,6 +174,14 @@ export const handleExit = async (
 
     await placeOrder(hyperliquid, coin, isBuy, position.qty, analysis.currentPrice, true);
 
+    const entry = position.entryPrice;
+    const pnl = (analysis.currentPrice - entry) * position.qty * (position.isShort ? -1 : 1);
+    if (pnl < 0) {
+      stateManager.addLoss(Math.abs(pnl));
+    } else {
+      stateManager.addProfit(pnl);
+    }
+
     stateManager.removeActivePosition(coin);
 
     logExit({
@@ -161,4 +206,9 @@ const checkTrailingStop = (position: Position, analysis: Analysis, config: BotCo
 const checkTakeProfit = (position: Position, analysis: Analysis, config: BotConfig): boolean => {
   const gainPct = ((analysis.currentPrice - position.entryPrice) / position.entryPrice) * 100;
   return gainPct >= (config.initialTakeProfitPct ?? 0);
+};
+
+// === DAILY LOSS MANAGEMENT ===
+export const resetDailyLoss = (): void => {
+  stateManager.resetDailyLoss();
 };

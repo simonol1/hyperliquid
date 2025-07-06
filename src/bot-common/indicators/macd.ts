@@ -1,4 +1,4 @@
-import { AnalyzeConfig } from '../analyse-asset.js';
+import { BotConfig } from '../../bots/config/bot-config.js';
 import { calculateEMA } from './ema.js';
 
 export interface MACDResult {
@@ -8,7 +8,7 @@ export interface MACDResult {
 
 export const calculateMACD = (
   closes: number[],
-  config: AnalyzeConfig,
+  config: BotConfig,
 ): MACDResult => {
   const { macdFastPeriod, macdSlowPeriod, macdSignalPeriod } = config
   const shortEMA: number = calculateEMA(closes.slice(-macdFastPeriod), macdFastPeriod);

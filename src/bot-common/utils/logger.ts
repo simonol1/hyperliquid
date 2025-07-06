@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import type { Analysis } from '../analyse-asset';
 
 // Optional: could use dayjs for fancy timestamps
 const now = () => new Date().toISOString();
@@ -65,4 +66,22 @@ export const appendLogFile = (msg: string) => {
   } catch (err) {
     console.error(`${LOG_PREFIX} [ERROR] [${now()}] ❌ Failed to append log file`, err);
   }
+};
+
+/**
+ * Cleanly log an Analysis snapshot.
+ * Includes EMAs only if they are valid.
+ */
+export const logAnalysis = (asset: string, a: Analysis) => {
+  const emaParts = [];
+  if (a.fastEma) emaParts.push(`Fast(${a.fastEma.toFixed(2)})`);
+  if (a.mediumEma) emaParts.push(`Medium(${a.mediumEma.toFixed(2)})`);
+  if (a.slowEma) emaParts.push(`Slow(${a.slowEma.toFixed(2)})`);
+  const emaOutput = emaParts.length ? ` | EMAs: ${emaParts.join(', ')}` : '';
+
+  logInfo(
+    `[AnalyseData] ${asset} | Price: ${a.currentPrice.toFixed(2)}${emaOutput} | RSI: ${a.rsi.toFixed(
+      1
+    )} | MACD: ${a.macd.toFixed(2)} | BB: [${a.bollingerBands.lower.toFixed(2)} - ${a.bollingerBands.upper.toFixed(2)}]`
+  );
 };

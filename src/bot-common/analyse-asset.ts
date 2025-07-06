@@ -4,7 +4,7 @@ import { calculateRSI } from './indicators/rsi.js';
 import { calculateMACD } from './indicators/macd.js';
 import { calculateBollingerBands } from './indicators/bollinger.js';
 import { getIntervalMs } from './utils/utils.js';
-import { logInfo, logError } from './utils/logger.js';
+import { logInfo, logError, logAnalysis } from './utils/logger.js';
 import { BotConfig } from '../bots/config/bot-config.js';
 
 export interface Analysis {
@@ -81,19 +81,7 @@ export const analyseData = async (
     const { macd, signal: macdSignalLine } = calculateMACD(closes, config);
     const bollingerBands = calculateBollingerBands(closes, config.bollingerPeriod || 20);
 
-    logInfo(
-      `[AnalyseData] ${asset} | Price: ${price.toFixed(2)} | EMAs: Fast(${config.emaFastPeriod}): ${fastEma.toFixed(
-        2
-      )} | Medium(${config.emaMediumPeriod}): ${mediumEma.toFixed(
-        2
-      )} | Slow(${config.emaSlowPeriod}): ${slowEma.toFixed(
-        2
-      )} | RSI(${config.rsiPeriod}): ${rsi.toFixed(1)} | MACD: ${macd.toFixed(
-        2
-      )} | BB: [${bollingerBands.lower.toFixed(2)} - ${bollingerBands.upper.toFixed(2)}]`
-    );
-
-    return {
+    const analysis: Analysis = {
       currentPrice: price,
       closes,
       fastEma,
@@ -104,6 +92,11 @@ export const analyseData = async (
       macdSignalLine,
       bollingerBands,
     };
+
+    logAnalysis(asset, analysis);
+
+    return analysis;
+
   } catch (err: any) {
     logError(`[AnalyseData] Error for ${asset}: ${err.message}`);
     return null;

@@ -1,13 +1,15 @@
 import { Hyperliquid } from '../../sdk/index';
 import { analyseData, Analysis } from '../../bot-common/analyse-asset';
-import { evaluateSignalTrend, Signal } from '../../bot-common/signal-evaluator-trend';
+import { evaluateTrendSignal } from '../../bot-common/trend-signal';
 import { executeExit } from '../../bot-common/trade-executor';
 import { evaluateExit } from '../../bot-common/evaluate-exit';
 import { stateManager } from '../../bot-common/state-manager';
 import { logInfo, logError } from '../../bot-common/utils/logger';
 import { BotConfig } from '../config/bot-config';
 import { initBotStats, recordTrade, buildSummary } from '../../bot-common/utils/summary';
-import { handleEntry } from '../../bot-common/entry-manager';
+import { Signal } from '../../bot-common/utils/types';
+import { handleSignal } from '../../bot-common/handle-signal';
+
 
 const trendStats = initBotStats();
 
@@ -39,7 +41,7 @@ export const runTrendBot = async (
         const analysis = await analyseData(hyperliquid, coin, config);
         if (!analysis) continue;
 
-        const signal = evaluateSignalTrend(coin, analysis, config);
+        const signal = evaluateTrendSignal(coin, analysis, config);
         if (signal.type === 'HOLD') continue;
 
         candidates.push({ coin, signal, analysis });
@@ -67,17 +69,14 @@ export const runTrendBot = async (
       }
 
       for (const candidate of toTrade) {
-        const pairMaxLeverage = maxLeverageMap[candidate.coin] ?? config.leverage;
-
-        await handleEntry({
+        await handleSignal(
           hyperliquid,
-          coin: candidate.coin,
-          signal: candidate.signal,
-          analysis: candidate.analysis,
+          candidate.coin,
+          candidate.signal,
+          candidate.analysis,
           config,
-          totalAccountUsd,
-          pairMaxLeverage,
-        });
+          maxLeverageMap
+        );
       }
 
       for (const coin of config.coins) {

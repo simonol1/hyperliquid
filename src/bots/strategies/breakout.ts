@@ -4,10 +4,12 @@ import { stateManager } from '../../bot-common/state-manager';
 import { logInfo, logError } from '../../bot-common/utils/logger';
 import { BotConfig } from '../config/bot-config';
 import { initBotStats, recordTrade, buildSummary } from '../../bot-common/utils/summary';
-import { handleEntry } from '../../bot-common/entry-manager';
 import { evaluateExit } from '../../bot-common/evaluate-exit';
 import { executeExit } from '../../bot-common/trade-executor';
-import { evaluateSignalBreakout, Signal } from '../../bot-common/signal-evaluator-breakout';
+import { evaluateBreakoutSignal } from '../../bot-common/breakout-signal';
+import { Signal } from '../../bot-common/utils/types';
+import { handleSignal } from '../../bot-common/handle-signal'
+
 
 const breakoutStats = initBotStats();
 
@@ -39,7 +41,7 @@ export const runBreakoutBot = async (
         const analysis = await analyseData(hyperliquid, coin, config);
         if (!analysis) continue;
 
-        const signal = evaluateSignalBreakout(coin, analysis, config);
+        const signal = evaluateBreakoutSignal(coin, analysis, config);
         if (signal.type === 'HOLD') continue;
 
         candidates.push({ coin, signal, analysis });
@@ -67,17 +69,14 @@ export const runBreakoutBot = async (
       }
 
       for (const candidate of toTrade) {
-        const pairMaxLeverage = maxLeverageMap[candidate.coin] ?? config.leverage;
-
-        await handleEntry({
+        await handleSignal(
           hyperliquid,
-          coin: candidate.coin,
-          signal: candidate.signal,
-          analysis: candidate.analysis,
+          candidate.coin,
+          candidate.signal,
+          candidate.analysis,
           config,
-          totalAccountUsd,
-          pairMaxLeverage,
-        });
+          maxLeverageMap
+        );
       }
 
       // === Check exits for all open positions

@@ -1,21 +1,26 @@
+
 services:
-  trend_bot:
+  hyperliquid-bot:
     build: .
+    image: hyperliquid-bot:latest
+
+  trend_bot:
+    image: hyperliquid-bot:latest
     env_file: .env
     environment:
-      - BOT_CONFIG=./src/bots/config/trend-config.json
-      - HYPERLIQUID_VAULT_ADDRESS=0xd380aafee4cb8f6d3fbb4480d7c808fa60c12055
+      - BOT_STRATEGY=trend
+      - HYPERLIQUID_WALLET=0xd380aafee4cb8f6d3fbb4480d7c808fa60c12055
 
   breakout_bot:
-    build: .
+    image: hyperliquid-bot:latest
     env_file: .env
     environment:
-      - BOT_CONFIG=./src/bots/config/breakout-config.json
-      - HYPERLIQUID_VAULT_ADDRESS=0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62
+      - BOT_STRATEGY=breakout
+      - HYPERLIQUID_WALLET=0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62
 
   reversion_bot:
-    build: .
+    image: hyperliquid-bot:latest
     env_file: .env
     environment:
-      - BOT_CONFIG=./src/bots/config/reversion-config.json
-      - HYPERLIQUID_VAULT_ADDRESS=0x0e788433e39ae49572f5da16b951b61b030b7761
+      - BOT_STRATEGY=reversion
+      - HYPERLIQUID_WALLET=0x0e788433e39ae49572f5da16b951b61b030b7761

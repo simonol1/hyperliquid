@@ -7,8 +7,11 @@ type CooldownsMap = Record<string, number | undefined>;
 
 const activePositions: PositionsMap = {};
 const cooldowns: CooldownsMap = {};
+let dailyLossUsd = 0;
 
 export const stateManager = {
+  // === POSITIONS ===
+
   /**
    * Get active position for an asset.
    */
@@ -52,6 +55,15 @@ export const stateManager = {
   },
 
   /**
+   * Get snapshot of all active positions.
+   */
+  getAllActivePositions: (): PositionsMap => {
+    return { ...activePositions };
+  },
+
+  // === COOLDOWNS ===
+
+  /**
    * Set cooldown timer for an asset.
    */
   setCooldown: (asset: string, durationMs: number): void => {
@@ -66,10 +78,24 @@ export const stateManager = {
     return expiry !== undefined && Date.now() < expiry;
   },
 
-  /**
-   * Get snapshot of all active positions.
-   */
-  getAllActivePositions: (): PositionsMap => {
-    return { ...activePositions };
+  // === DAILY LOSS ===
+
+  addLoss: (amountUsd: number): void => {
+    dailyLossUsd += amountUsd;
+    console.log(`[StateManager] ➖ Added loss $${amountUsd.toFixed(2)} → Total today: $${dailyLossUsd.toFixed(2)}`);
+  },
+
+  addProfit: (amountUsd: number): void => {
+    dailyLossUsd -= amountUsd;
+    console.log(`[StateManager] ➕ Added profit $${amountUsd.toFixed(2)} → Total today: $${dailyLossUsd.toFixed(2)}`);
+  },
+
+  getDailyLossUsd: (): number => {
+    return dailyLossUsd;
+  },
+
+  resetDailyLoss: (): void => {
+    dailyLossUsd = 0;
+    console.log(`[StateManager] 🔄 Daily loss counter reset.`);
   },
 };

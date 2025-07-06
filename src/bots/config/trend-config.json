@@ -6,7 +6,8 @@
     "SOL-PERP",
     "HYPE-PERP",
     "LINK-PERP",
-    "MATIC-PERP"
+    "WIF-PERP",
+    "WLD-PERP"
   ],
   "loopIntervalMs": 60000,
   "timeframe": "1h",
@@ -17,8 +18,8 @@
   "macdFastPeriod": 12,
   "macdSlowPeriod": 26,
   "macdSignalPeriod": 9,
-  "rsiOverboughtThreshold": 70,
-  "rsiOversoldThreshold": 30,
+  "rsiOverboughtThreshold": 60,
+  "rsiOversoldThreshold": 40,
   "trailingStopPct": 0.5,
   "initialTakeProfitPct": 2.0,
   "maxCapitalRiskUsd": 50,

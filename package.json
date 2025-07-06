@@ -34,7 +34,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx}\"",
     "format:all": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "postinstall": "node -e \"if (process.env.NODE_ENV !== 'production' && require('fs').existsSync('.git')) { try { require('husky').install() } catch (e) { console.log('Husky setup skipped') } }\"",
-    "dev:setup": "husky install"
+    "dev:setup": "husky install",
+    "start:bots": "node ./dist/index.js"
   },
   "keywords": [
     "hyperliquid",
@@ -55,16 +56,19 @@
     "axios": "^1.7.2",
     "dotenv": "^16.5.0",
     "ethers": "^6.13.2",
+    "node-cron": "^4.2.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
+    "@types/ws": "^8.18.1",
     "esbuild": "^0.25.5",
     "husky": "^9.1.7",
     "jest": "^29.0.0",
     "lint-staged": "^15.5.1",
     "prettier": "^3.5.3",
     "serve": "^14.0.0",
+    "ts-node": "^10.9.2",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
   },

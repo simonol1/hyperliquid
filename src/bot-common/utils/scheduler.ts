@@ -1,7 +1,7 @@
-// src/utils/scheduler.ts
 import { sendTelegramMessage } from './telegram.js';
 import { logInfo } from './logger.js';
 import cron from 'node-cron';
+import { resetDailyLoss } from '../trade-executor.js'
 
 /**
  * Daily summary
@@ -16,7 +16,7 @@ export const scheduleDailyReport = (
     });
 
     logInfo('Daily report scheduled: 21:00 server time');
-}
+};
 
 /**
  * Heartbeat every N hours
@@ -33,4 +33,16 @@ export const scheduleHeartbeat = (
     });
 
     logInfo(`Heartbeat scheduled: every ${intervalHours} hour(s)`);
-}
+};
+
+/**
+ * 🕛 Daily loss reset at 5pm
+ */
+export const scheduleDailyReset = () => {
+    cron.schedule('0 17 * * *', () => {
+        resetDailyLoss();
+        logInfo('[RiskManager] ✅ Daily loss reset at 5pm.');
+    });
+
+    logInfo('Daily loss reset schedule set: 5pm server time');
+};

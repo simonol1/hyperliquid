@@ -1,6 +1,12 @@
-import path from 'path';
-import fs from 'fs';
+// === Run WS shim immediately ===
+import ws from 'ws';
+// This shim is required to make the Hyperliquid SDK work in Node.js environments
+// that do not support the native WebSocket API, such as when running in a test environment
+// or in environments where the WebSocket API is not available globally.
+globalThis.WebSocket = ws as any;
+
 import dotenv from 'dotenv';
+dotenv.config();
 
 import { Hyperliquid } from '../sdk/index.js';
 
@@ -9,11 +15,13 @@ import {
   getTrendSummary,
   getTrendStatus,
 } from './strategies/trend.js';
+
 import {
   runBreakoutBot,
   getBreakoutSummary,
   getBreakoutStatus,
 } from './strategies/breakout.js';
+
 import {
   runReversionBot,
   getReversionSummary,
@@ -27,74 +35,58 @@ import {
 } from '../bot-common/utils/scheduler.js';
 import { getMaxLeverageMap } from '../bot-common/utils/leverage.js';
 
-dotenv.config();
-
-const configPath =
-  process.env.BOT_CONFIG || path.resolve('src/bots/config/trend-config.json');
-
-if (!fs.existsSync(configPath)) {
-  console.error(`❌ Config file not found: ${configPath}`);
-  process.exit(1);
-}
-
-const strategyConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-
-// Attach a global unhandled error logger
+// === Global error handlers ===
 process.on('uncaughtException', (err) => {
   logError(`❌ Uncaught Exception: ${err}`);
   process.exit(1);
 });
-
 process.on('unhandledRejection', (reason) => {
   logError(`❌ Unhandled Rejection: ${reason}`);
   process.exit(1);
 });
-
-const shutdown = () => {
+process.on('SIGTERM', () => {
   logInfo('🔌 Received shutdown signal. Exiting...');
   process.exit(0);
-};
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+});
+process.on('SIGINT', () => {
+  logInfo('🔌 Received shutdown signal. Exiting...');
+  process.exit(0);
+});
 
 const run = async () => {
-  logInfo(`🔑 Strategy config: ${JSON.stringify(strategyConfig, null, 2)}`);
-
   const hyperliquid = new Hyperliquid({
+    enableWs: true,
     privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
-    walletAddress: strategyConfig.walletAddress,
+    walletAddress: process.env.HYPERLIQUID_WALLET,
     testnet: process.env.HYPERLIQUID_TESTNET === 'true',
   });
 
   await hyperliquid.connect();
-  logInfo(`✅ Connected. Running "${strategyConfig.strategy}" bot for ${strategyConfig.walletAddress}`);
+  logInfo(`✅ Connected. Running ALL bots in ONE process`);
 
   const maxLeverageMap = await getMaxLeverageMap(hyperliquid);
   logInfo(`✅ Loaded max leverage per pair → ${Object.keys(maxLeverageMap).length} pairs.`);
 
-  switch (strategyConfig.strategy) {
-    case 'trend':
-      scheduleDailyReport('Trend Bot', getTrendSummary);
-      scheduleHeartbeat('Trend Bot', getTrendStatus, 2);
-      await runTrendBot(hyperliquid, strategyConfig, maxLeverageMap);
-      break;
+  // === Load each strategy's config ===
+  const trendConfig = require('./config/trend-config.json');
+  const breakoutConfig = require('./config/breakout-config.json');
+  const reversionConfig = require('./config/reversion-config.json');
 
-    // case 'breakout':
-    //   scheduleDailyReport('Breakout Bot', getBreakoutSummary);
-    //   scheduleHeartbeat('Breakout Bot', getBreakoutStatus, 2);
-    //   await runBreakoutBot(hyperliquid, strategyConfig, maxLeverageMap);
-    //   break;
+  // === Schedule ===
+  scheduleDailyReport('Trend Bot', getTrendSummary);
+  scheduleDailyReport('Breakout Bot', getBreakoutSummary);
+  scheduleDailyReport('Reversion Bot', getReversionSummary);
 
-    // case 'reversion':
-    //   scheduleDailyReport('Reversion Bot', getReversionSummary);
-    //   scheduleHeartbeat('Reversion Bot', getReversionStatus, 2);
-    //   await runReversionBot(hyperliquid, strategyConfig, maxLeverageMap);
-    //   break;
+  scheduleHeartbeat('Trend Bot', getTrendStatus, 2);
+  scheduleHeartbeat('Breakout Bot', getBreakoutStatus, 2);
+  scheduleHeartbeat('Reversion Bot', getReversionStatus, 2);
 
-    default:
-      throw new Error(`❌ Unknown strategy: ${strategyConfig.strategy}`);
-  }
+  // === Start all bots in parallel ===
+  await Promise.all([
+    runTrendBot(hyperliquid, trendConfig, maxLeverageMap),
+    runBreakoutBot(hyperliquid, breakoutConfig, maxLeverageMap),
+    runReversionBot(hyperliquid, reversionConfig, maxLeverageMap),
+  ]);
 };
 
 run().catch((err) => {
