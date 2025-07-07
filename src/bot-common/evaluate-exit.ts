@@ -1,34 +1,23 @@
-import { BotConfig } from '../bots/config/bot-config.js';
-import { Analysis } from './analyse-asset.js';
-import { ExitIntent, Position } from './trade-executor.js';
+import type { ExitIntent, Position } from './trade-executor';
+import type { Analysis } from './analyse-asset';
+import type { BotConfig } from '../bots/config/bot-config';
+import { checkTrailingStop, checkTakeProfit } from '../bot-common/utils/trailing-stop-helpers';
 
-export const evaluateExit = (
+export const evaluateExit = async (
   position: Position,
   analysis: Analysis,
   config: BotConfig
-): ExitIntent | null => {
-  const { entryPrice, qty } = position;
+): Promise<ExitIntent | null> => {
+  const shouldExit =
+    checkTrailingStop(position, analysis, config) ||
+    checkTakeProfit(position, analysis, config);
 
-  const dropPct = ((position.highestPrice - analysis.currentPrice) / position.highestPrice) * 100;
-  const gainPct = ((analysis.currentPrice - entryPrice) / entryPrice) * 100;
+  if (!shouldExit) return null;
 
-  if (dropPct >= config.trailingStopPct) {
-    return {
-      quantity: qty,
-      price: analysis.currentPrice,
-      type: 'EXIT',
-      reason: `TrailingStop ${dropPct.toFixed(2)}%`,
-    };
-  }
-
-  if (gainPct >= config.initialTakeProfitPct) {
-    return {
-      quantity: qty,
-      price: analysis.currentPrice,
-      type: 'EXIT',
-      reason: `TakeProfit ${gainPct.toFixed(2)}%`,
-    };
-  }
-
-  return null;
+  return {
+    quantity: position.qty,
+    price: analysis.currentPrice,
+    type: 'EXIT',
+    reason: 'TrailingStopOrTP'
+  };
 };

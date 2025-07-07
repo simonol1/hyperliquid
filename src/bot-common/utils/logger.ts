@@ -62,11 +62,18 @@ const logFilePath = path.resolve(
 
 export const appendLogFile = (msg: string) => {
   try {
+    const logsDir = path.dirname(logFilePath);
+
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+
     fs.appendFileSync(logFilePath, msg + '\n', { encoding: 'utf8' });
   } catch (err) {
     console.error(`${LOG_PREFIX} [ERROR] [${now()}] ❌ Failed to append log file`, err);
   }
 };
+
 
 /**
  * Cleanly log an Analysis snapshot.

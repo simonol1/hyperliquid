@@ -41,7 +41,7 @@ export const calculatePositionSize = (
     );
 
     return {
-        capitalRiskUsd,
+        capitalRiskUsd: 10, // For testing, replace with actual calculation
         leverage,
         capitalRiskPct
     };

@@ -32,7 +32,7 @@ export interface BotConfig {
   maxConcurrentTrades: number
   maxCapitalRiskUsd: number;    // hard USD max per trade
   leverage: number;             // default desired leverage
-  walletAddress: string;        // sub-account wallet for this bot
+  vaultAddress: string;        // sub-account wallet for this bot
 
   riskMapping: RiskMapping;     // dynamic risk map
 }

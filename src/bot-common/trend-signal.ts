@@ -12,39 +12,44 @@ export const evaluateTrendSignal = (
 
   let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
 
-  // ✅ Classic trend cross: Fast EMA crosses Medium + Slow, MACD positive
-  const bullish = fastEma > mediumEma && mediumEma > slowEma && macd > 0;
-  const bearish = fastEma < mediumEma && mediumEma < slowEma && macd < 0;
-
-  if (bullish && rsi < config.rsiOverboughtThreshold) {
+  // ✅ Example logic: classic trend confirmation
+  if (fastEma > mediumEma && mediumEma > slowEma && macd > 0) {
     type = 'BUY';
-  } else if (bearish && rsi > config.rsiOversoldThreshold) {
+  } else if (fastEma < mediumEma && mediumEma < slowEma && macd < 0) {
     type = 'SELL';
   }
 
-  let strength = 0;
-
+  // === Calculate trending strength
+  let emaGap = 0;
   if (type !== 'HOLD') {
-    const emaGap = Math.abs(fastEma - mediumEma) + Math.abs(mediumEma - slowEma);
-    const macdFactor = Math.abs(macd);
-    const rsiDistance =
-      type === 'BUY'
-        ? config.rsiOverboughtThreshold - rsi
-        : rsi - config.rsiOversoldThreshold;
+    const emaStack = Math.abs(fastEma - mediumEma) + Math.abs(mediumEma - slowEma);
+    emaGap = emaStack / slowEma * 100; // normalize
+  }
 
-    strength = emaGap + macdFactor + rsiDistance;
+  const rsiContribution = type === 'BUY'
+    ? rsi - 50
+    : 50 - rsi;
+
+  const macdContribution = Math.abs(macd);
+
+  let strength = 0;
+  if (type !== 'HOLD') {
+    strength =
+      emaGap * 10 + // EMA separation is king
+      Math.max(0, rsiContribution) * 1.5 + // RSI trending with direction
+      macdContribution * 3;
 
     if (strength > 100) strength = 100;
-    if (strength < 0) strength = 0;
   }
 
   logInfo(
     `[Signal Evaluator] ${asset}: Strategy=TREND | Type=${type} | EMAs: Fast=${fastEma.toFixed(
       2
-    )}, Medium=${mediumEma.toFixed(2)}, Slow=${slowEma.toFixed(
-      2
-    )} | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`
+    )}, Medium=${mediumEma.toFixed(2)}, Slow=${slowEma.toFixed(2)} | RSI=${rsi.toFixed(
+      1
+    )} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`
   );
 
   return { type, strength };
 };
+

@@ -1,41 +1,26 @@
-// === Run WS shim immediately ===
+// === Polyfill WS ===
 import ws from 'ws';
-// This shim is required to make the Hyperliquid SDK work in Node.js environments
-// that do not support the native WebSocket API, such as when running in a test environment
-// or in environments where the WebSocket API is not available globally.
 globalThis.WebSocket = ws as any;
 
 import dotenv from 'dotenv';
 dotenv.config();
 
 import { Hyperliquid } from '../sdk/index.js';
-
-import {
-  runTrendBot,
-  getTrendSummary,
-  getTrendStatus,
-} from './strategies/trend.js';
-
-import {
-  runBreakoutBot,
-  getBreakoutSummary,
-  getBreakoutStatus,
-} from './strategies/breakout.js';
-
-import {
-  runReversionBot,
-  getReversionSummary,
-  getReversionStatus,
-} from './strategies/reversion.js';
-
 import { logInfo, logError } from '../bot-common/utils/logger.js';
+import { buildMetaMap } from '../bot-common/utils/coin-meta.js';
 import {
-  scheduleDailyReport,
-  scheduleHeartbeat,
+  runTrendBot, getTrendSummary, getTrendStatus,
+} from './strategies/trend.js';
+import {
+  runBreakoutBot, getBreakoutSummary, getBreakoutStatus,
+} from './strategies/breakout.js';
+import {
+  runReversionBot, getReversionSummary, getReversionStatus,
+} from './strategies/reversion.js';
+import {
+  scheduleDailyReport, scheduleHeartbeat,
 } from '../bot-common/utils/scheduler.js';
-import { getMaxLeverageMap } from '../bot-common/utils/leverage.js';
 
-// === Global error handlers ===
 process.on('uncaughtException', (err) => {
   logError(`❌ Uncaught Exception: ${err}`);
   process.exit(1);
@@ -45,34 +30,51 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 process.on('SIGTERM', () => {
-  logInfo('🔌 Received shutdown signal. Exiting...');
+  logInfo('🔌 SIGTERM received. Exiting...');
   process.exit(0);
 });
 process.on('SIGINT', () => {
-  logInfo('🔌 Received shutdown signal. Exiting...');
+  logInfo('🔌 SIGINT received. Exiting...');
   process.exit(0);
 });
 
-const run = async () => {
-  const hyperliquid = new Hyperliquid({
+// === Helper to init one bot client ===
+async function initBotClient(vaultAddress: string) {
+  const client = new Hyperliquid({
     enableWs: true,
     privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
     walletAddress: process.env.HYPERLIQUID_WALLET,
+    vaultAddress,
     testnet: process.env.HYPERLIQUID_TESTNET === 'true',
   });
+  await client.connect();
+  return client;
+}
 
-  await hyperliquid.connect();
-  logInfo(`✅ Connected. Running ALL bots in ONE process`);
+// === Main runner ===
+const run = async () => {
+  // === 1️⃣ Init all bot clients ===
+  const [trendClient, breakoutClient, reversionClient] = await Promise.all([
+    initBotClient(process.env.HYPERLIQUID_VAULT_TREND!),
+    initBotClient(process.env.HYPERLIQUID_VAULT_BREAKOUT!),
+    initBotClient(process.env.HYPERLIQUID_VAULT_REVERSION!),
+  ]);
 
-  const maxLeverageMap = await getMaxLeverageMap(hyperliquid);
-  logInfo(`✅ Loaded max leverage per pair → ${Object.keys(maxLeverageMap).length} pairs.`);
+  logInfo(`✅ All bots connected with separate vaults`);
 
-  // === Load each strategy's config ===
+  // === 2️⃣ Get meta for each ===
+  const [trendMeta, breakoutMeta, reversionMeta] = await Promise.all([
+    buildMetaMap(trendClient),
+    buildMetaMap(breakoutClient),
+    buildMetaMap(reversionClient),
+  ]);
+
+  // === 3️⃣ Load configs ===
   const trendConfig = require('./config/trend-config.json');
   const breakoutConfig = require('./config/breakout-config.json');
   const reversionConfig = require('./config/reversion-config.json');
 
-  // === Schedule ===
+  // === 4️⃣ Schedule reports ===
   scheduleDailyReport('Trend Bot', getTrendSummary);
   scheduleDailyReport('Breakout Bot', getBreakoutSummary);
   scheduleDailyReport('Reversion Bot', getReversionSummary);
@@ -81,11 +83,11 @@ const run = async () => {
   scheduleHeartbeat('Breakout Bot', getBreakoutStatus, 2);
   scheduleHeartbeat('Reversion Bot', getReversionStatus, 2);
 
-  // === Start all bots in parallel ===
+  // === 5️⃣ Start bots ===
   await Promise.all([
-    runTrendBot(hyperliquid, trendConfig, maxLeverageMap),
-    runBreakoutBot(hyperliquid, breakoutConfig, maxLeverageMap),
-    runReversionBot(hyperliquid, reversionConfig, maxLeverageMap),
+    runTrendBot(trendClient, trendConfig, trendMeta),
+    runBreakoutBot(breakoutClient, breakoutConfig, breakoutMeta),
+    runReversionBot(reversionClient, reversionConfig, reversionMeta),
   ]);
 };
 

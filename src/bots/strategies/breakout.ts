@@ -8,8 +8,8 @@ import { evaluateExit } from '../../bot-common/evaluate-exit';
 import { executeExit } from '../../bot-common/trade-executor';
 import { evaluateBreakoutSignal } from '../../bot-common/breakout-signal';
 import { Signal } from '../../bot-common/utils/types';
-import { handleSignal } from '../../bot-common/handle-signal'
-
+import { handleSignal } from '../../bot-common/handle-signal';
+import { CoinMeta } from '../../bot-common/utils/coin-meta';
 
 const breakoutStats = initBotStats();
 
@@ -26,14 +26,16 @@ export const getBreakoutStatus = () => {
 export const runBreakoutBot = async (
   hyperliquid: Hyperliquid,
   config: BotConfig,
-  maxLeverageMap: Record<string, number>
+  metaMap: Map<string, CoinMeta>
 ) => {
-  logInfo(`[Breakout Bot] Started for ${config.walletAddress} | Coins: ${config.coins.join(', ')}`);
+  logInfo(`[Breakout Bot] Started for ${config.vaultAddress} | Coins: ${config.coins.join(', ')}`);
 
   while (true) {
     try {
-      const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(config.walletAddress);
-      const totalAccountUsd = parseFloat(perpState.marginSummary.accountValue);
+      const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(config.vaultAddress);
+      const realPositions = perpState.assetPositions.filter(
+        p => Math.abs(parseFloat(p.position.szi)) > 0
+      );
 
       const candidates: { coin: string; signal: Signal; analysis: Analysis }[] = [];
 
@@ -52,10 +54,8 @@ export const runBreakoutBot = async (
       );
       goodSignals.sort((a, b) => b.signal.strength - a.signal.strength);
 
-      const openPositions = stateManager.getAllActivePositions();
-      const openCount = Object.keys(openPositions).length;
+      const openCount = realPositions.length;
       const slots = Math.max(0, config.maxConcurrentTrades - openCount);
-
       const toTrade = goodSignals.slice(0, slots);
 
       if (toTrade.length === 0) {
@@ -71,25 +71,38 @@ export const runBreakoutBot = async (
       for (const candidate of toTrade) {
         await handleSignal(
           hyperliquid,
-          candidate.coin,
           candidate.signal,
           candidate.analysis,
           config,
-          maxLeverageMap
+          metaMap.get(candidate.coin)
         );
       }
 
-      // === Check exits for all open positions
-      for (const coin of config.coins) {
+      // === Check exits for real positions ===
+      for (const position of realPositions) {
+        const coin = position.position.coin;
+
         const analysis = await analyseData(hyperliquid, coin, config);
         if (!analysis) continue;
 
-        const currentPosition = stateManager.getActivePosition(coin);
-        if (!currentPosition) continue;
+        const szi = parseFloat(position.position.szi);
+        const entryPx = parseFloat(position.position.entryPx);
+        const isShort = szi < 0;
 
-        const exitIntent = evaluateExit(currentPosition, analysis, config);
+        // Update high watermark for trailing stop
+        stateManager.setHighWatermark(coin, analysis.currentPrice, isShort);
+
+        const virtualPosition = {
+          qty: Math.abs(szi),
+          entryPrice: entryPx,
+          highestPrice: stateManager.getHighWatermark(coin) ?? entryPx,
+          isShort,
+        };
+
+        const exitIntent = await evaluateExit(virtualPosition, analysis, config);
         if (exitIntent) {
-          await executeExit(hyperliquid, coin, exitIntent);
+          await executeExit(hyperliquid, config.vaultAddress, exitIntent, metaMap.get(coin));
+          stateManager.clearHighWatermark(coin);
           stateManager.setCooldown(coin, 5 * 60 * 1000);
         }
       }

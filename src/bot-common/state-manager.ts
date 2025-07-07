@@ -1,99 +1,114 @@
 // src/bot-common/state-manager.ts
 
-import { Position } from './trade-executor';
+/**
+ * State manager for bots:
+ * - Cooldowns per coin
+ * - High watermarks for trailing stop tracking
+ * - Daily PnL tracking
+ */
 
-type PositionsMap = Record<string, Position | undefined>;
 type CooldownsMap = Record<string, number | undefined>;
+type HighWatermarksMap = Record<string, number>;
 
-const activePositions: PositionsMap = {};
-const cooldowns: CooldownsMap = {};
 let dailyLossUsd = 0;
+const cooldowns: CooldownsMap = {};
+const highWatermarks: HighWatermarksMap = {};
 
+/**
+ * Track trailing stop: store or update a coin’s high or low water mark.
+ * Long: new high = update. Short: new low = update.
+ */
 export const stateManager = {
-  // === POSITIONS ===
-
   /**
-   * Get active position for an asset.
+   * Set or update high watermark for a coin.
+   * @param coin 
+   * @param price 
+   * @param isShort 
    */
-  getActivePosition: (asset: string): Position | undefined => {
-    return activePositions[asset];
-  },
-
-  /**
-   * Set or update active position for an asset.
-   */
-  setActivePosition: (asset: string, positionData: Partial<Position>): void => {
-    const existing = activePositions[asset];
-
-    const qty = positionData.qty ?? existing?.qty;
-    const entryPrice = positionData.entryPrice ?? existing?.entryPrice;
-    const isShort = positionData.isShort ?? existing?.isShort;
-
-    if (qty === undefined || entryPrice === undefined || isShort === undefined) {
-      throw new Error(
-        `Missing required fields for position: qty=${qty}, entryPrice=${entryPrice}, isShort=${isShort}`
-      );
+  setHighWatermark: (coin: string, price: number, isShort: boolean) => {
+    const current = highWatermarks[coin];
+    if (current === undefined) {
+      highWatermarks[coin] = price;
+      return;
     }
-
-    activePositions[asset] = {
-      qty,
-      entryPrice,
-      highestPrice:
-        positionData.highestPrice !== undefined
-          ? positionData.highestPrice
-          : existing?.highestPrice ?? entryPrice,
-      isShort,
-      takeProfitTarget: positionData.takeProfitTarget ?? existing?.takeProfitTarget,
-    };
+    if (!isShort && price > current) {
+      highWatermarks[coin] = price;
+    }
+    if (isShort && price < current) {
+      highWatermarks[coin] = price;
+    }
   },
 
   /**
-   * Remove position for an asset.
+   * Get stored high watermark for a coin.
+   * @param coin 
    */
-  removeActivePosition: (asset: string): void => {
-    delete activePositions[asset];
+  getHighWatermark: (coin: string): number | undefined => {
+    return highWatermarks[coin];
   },
 
   /**
-   * Get snapshot of all active positions.
+   * Clear high watermark after an exit.
+   * @param coin 
    */
-  getAllActivePositions: (): PositionsMap => {
-    return { ...activePositions };
+  clearHighWatermark: (coin: string) => {
+    delete highWatermarks[coin];
   },
 
-  // === COOLDOWNS ===
+  // === Cooldowns ===
 
   /**
-   * Set cooldown timer for an asset.
+   * Start cooldown timer for a coin.
+   * @param asset 
+   * @param durationMs 
    */
   setCooldown: (asset: string, durationMs: number): void => {
     cooldowns[asset] = Date.now() + durationMs;
   },
 
   /**
-   * Check if an asset is cooling down.
+   * Check if a coin is in cooldown.
+   * @param asset 
    */
   isInCooldown: (asset: string): boolean => {
     const expiry = cooldowns[asset];
     return expiry !== undefined && Date.now() < expiry;
   },
 
-  // === DAILY LOSS ===
+  // === Daily PnL ===
 
+  /**
+   * Add loss to daily running total.
+   * @param amountUsd 
+   */
   addLoss: (amountUsd: number): void => {
     dailyLossUsd += amountUsd;
-    console.log(`[StateManager] ➖ Added loss $${amountUsd.toFixed(2)} → Total today: $${dailyLossUsd.toFixed(2)}`);
+    console.log(
+      `[StateManager] ➖ Recorded loss: $${amountUsd.toFixed(2)} → Net today: $${dailyLossUsd.toFixed(2)}`
+    );
   },
 
+  /**
+   * Add profit to daily running total.
+   * @param amountUsd 
+   */
   addProfit: (amountUsd: number): void => {
     dailyLossUsd -= amountUsd;
-    console.log(`[StateManager] ➕ Added profit $${amountUsd.toFixed(2)} → Total today: $${dailyLossUsd.toFixed(2)}`);
+    console.log(
+      `[StateManager] ➕ Recorded profit: $${amountUsd.toFixed(2)} → Net today: $${dailyLossUsd.toFixed(2)}`
+    );
   },
 
+  /**
+   * Get total daily loss or profit.
+   */
   getDailyLossUsd: (): number => {
     return dailyLossUsd;
   },
 
+  /**
+   * Reset daily PnL.
+   */
   resetDailyLoss: (): void => {
     dailyLossUsd = 0;
     console.log(`[StateManager] 🔄 Daily loss counter reset.`);

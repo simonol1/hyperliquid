@@ -1,19 +1,27 @@
 import { stateManager } from './state-manager.js';
 import { calculatePositionSize } from './utils/risk-mapper.js';
-import { logInfo } from './utils/logger.js';
+import { logError, logInfo } from './utils/logger.js';
 import { executeEntry } from './trade-executor.js';
 import type { Hyperliquid } from '../sdk/index.js';
 import type { Signal } from './utils/types.js';
 import type { BotConfig } from '../bots/config/bot-config.js';
+import { CoinMeta } from './utils/coin-meta.js';
 
 export const handleSignal = async (
     hyperliquid: Hyperliquid,
-    coin: string,
     signal: Signal,
     analysis: any,
     config: BotConfig,
-    maxLeverageMap: Record<string, number>
+    coinMeta?: CoinMeta
 ) => {
+
+    const { coin, maxLeverage } = coinMeta || {}
+
+    if (!coinMeta || !coin) {
+        logError(`[handleSignal] No coin metadata found for ${coin}, using default config.`);
+        return;
+    }
+
     logInfo(`[handleSignal] Signal: ${JSON.stringify(signal)}`);
 
     if (signal.strength < config.riskMapping.minScore) {
@@ -26,8 +34,14 @@ export const handleSignal = async (
         return;
     }
 
-    if (stateManager.getActivePosition(coin)) {
-        logInfo(`[handleSignal] Already have position for ${coin} — skipping.`);
+    // ✅ Check *real* clearinghouse position
+    const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(config.vaultAddress);
+    const realPosition = perpState.assetPositions.find(
+        (p) => p.position.coin === coin && Math.abs(parseFloat(p.position.szi)) > 0
+    );
+
+    if (realPosition) {
+        logInfo(`[handleSignal] Already have real position for ${coin} — skipping.`);
         return;
     }
 
@@ -42,7 +56,7 @@ export const handleSignal = async (
         config.riskMapping
     );
 
-    const pairMaxLeverage = maxLeverageMap[coin] ?? config.leverage;
+    const pairMaxLeverage = maxLeverage ?? config.leverage;
     const leverage = Math.min(mappedLeverage, pairMaxLeverage);
 
     logInfo(
@@ -53,20 +67,14 @@ export const handleSignal = async (
 
     await executeEntry(
         hyperliquid,
-        config.walletAddress,
-        coin,
+        config.vaultAddress,
         analysis.currentPrice,
         capitalRiskUsd,
         leverage,
         signal.type,
-        config.strategy as "breakout" | "trend" | "reversion"
+        config.strategy as "breakout" | "trend" | "reversion",
+        signal.strength,
+        coinMeta
     );
-
-    stateManager.setActivePosition(coin, {
-        qty: capitalRiskUsd / analysis.currentPrice,
-        entryPrice: analysis.currentPrice,
-        isShort: signal.type === 'SELL',
-    });
-
-    logInfo(`[handleSignal] Position opened: ${coin} USD ${capitalRiskUsd.toFixed(2)} Leverage ${leverage}x`);
 };
+

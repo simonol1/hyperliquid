@@ -1,7 +1,7 @@
 import { sendTelegramMessage } from './telegram.js';
 import { logInfo } from './logger.js';
 import cron from 'node-cron';
-import { resetDailyLoss } from '../trade-executor.js'
+import { stateManager } from '../state-manager.js';
 
 /**
  * Daily summary
@@ -40,7 +40,7 @@ export const scheduleHeartbeat = (
  */
 export const scheduleDailyReset = () => {
     cron.schedule('0 17 * * *', () => {
-        resetDailyLoss();
+        stateManager.resetDailyLoss();
         logInfo('[RiskManager] ✅ Daily loss reset at 5pm.');
     });
 

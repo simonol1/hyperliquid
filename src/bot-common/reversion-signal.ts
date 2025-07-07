@@ -8,56 +8,47 @@ export const evaluateReversionSignal = (
     analysis: Analysis,
     config: BotConfig
 ): Signal => {
-    const { currentPrice, bollingerBands, rsi } = analysis;
+    const { currentPrice, slowEma, rsi, macd } = analysis;
 
     let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
 
-    const lower = bollingerBands.lower;
-    const upper = bollingerBands.upper;
+    const distanceFromMean = ((currentPrice - slowEma) / slowEma) * 100;
 
-    const bandBufferPct = 0.005;
-    const lowerThreshold = lower * (1 + bandBufferPct);
-    const upperThreshold = upper * (1 - bandBufferPct);
-
-    const nearLower = currentPrice <= lowerThreshold;
-    const nearUpper = currentPrice >= upperThreshold;
-
-    // ✅ Allow RSI to be near threshold, not just under/over
-    const rsiBuffer = 5;
-
-    const rsiOversold = config.rsiOversoldThreshold + rsiBuffer;
-    const rsiOverbought = config.rsiOverboughtThreshold - rsiBuffer;
-
-    if (nearLower && rsi < rsiOversold) {
-        type = 'BUY';
-    } else if (nearUpper && rsi > rsiOverbought) {
+    // ✅ New logic: distance alone decides type
+    if (distanceFromMean > 0.5) {
         type = 'SELL';
+    } else if (distanceFromMean < -0.5) {
+        type = 'BUY';
     }
 
     let strength = 0;
 
     if (type !== 'HOLD') {
-        const bandDistance =
-            type === 'BUY' ? lower - currentPrice : currentPrice - upper;
-        const rsiFactor =
-            type === 'BUY'
-                ? config.rsiOversoldThreshold - rsi
-                : rsi - config.rsiOverboughtThreshold;
+        const distanceFactor = Math.abs(distanceFromMean) * 20;
 
-        // ✅ Tame the strength boost to avoid inflating it
-        strength = (Math.abs(bandDistance) * 2) + (rsiFactor * 2);
+        // RSI boosts if it aligns
+        let rsiFactor = 0;
+        if (type === 'SELL' && rsi > config.rsiOverboughtThreshold) {
+            rsiFactor = (rsi - config.rsiOverboughtThreshold) * 1.5;
+        } else if (type === 'BUY' && rsi < config.rsiOversoldThreshold) {
+            rsiFactor = (config.rsiOversoldThreshold - rsi) * 1.5;
+        }
+
+        const macdFactor = Math.abs(macd);
+
+        strength = distanceFactor + rsiFactor + macdFactor;
 
         if (strength > 100) strength = 100;
-        if (strength < 0) strength = 0;
     }
 
     logInfo(
         `[Signal Evaluator] ${asset}: Strategy=REVERSION | Type=${type} | Price=${currentPrice.toFixed(
             2
-        )} | BB: [${lower.toFixed(2)} - ${upper.toFixed(2)}] | RSI=${rsi.toFixed(
-            1
-        )} | Strength=${strength.toFixed(1)}`
+        )} | EMA Slow=${slowEma.toFixed(2)} | Distance=${distanceFromMean.toFixed(
+            2
+        )}% | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`
     );
 
     return { type, strength };
 };
+
