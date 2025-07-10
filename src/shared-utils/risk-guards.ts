@@ -1,7 +1,7 @@
 import { logInfo } from './logger.js';
 import type { Hyperliquid } from '../../sdk/index.js';
-import { stateManager } from '../state-manager.js';
-import type { CoinMeta } from '../../bot-common/utils/coin-meta.js';
+import { stateManager } from './state-manager.js';
+import type { CoinMeta } from './coin-meta.js';
 
 const MIN_BALANCE_USD = 11;
 const MAX_DAILY_LOSS_USD = 200;

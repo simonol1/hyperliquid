@@ -35,7 +35,8 @@
     "format:all": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "postinstall": "node -e \"if (process.env.NODE_ENV !== 'production' && require('fs').existsSync('.git')) { try { require('husky').install() } catch (e) { console.log('Husky setup skipped') } }\"",
     "dev:setup": "husky install",
-    "start:bots": "node ./dist/index.js"
+    "start:bots": "node dist/bots/index.mjs",
+    "start:orchestrator": "node dist/orchestrator/index.mjs"
   },
   "keywords": [
     "hyperliquid",
@@ -57,6 +58,9 @@
     "dotenv": "^16.5.0",
     "ethers": "^6.13.2",
     "node-cron": "^4.2.0",
+    "pino": "^9.7.0",
+    "redis": "^5.5.6",
+    "uuid": "^11.1.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {

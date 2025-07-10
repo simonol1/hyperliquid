@@ -13,8 +13,8 @@ export interface BotConfig {
   loopIntervalMs: number;       // main loop interval
   timeframe: string;            // e.g. "1h"
 
-  emaFastPeriod: number;        // fast EMA, e.g. 10, 20
-  emaMediumPeriod: number;      // medium EMA, e.g. 50
+  emaFastPeriod?: number;        // fast EMA, e.g. 10, 20
+  emaMediumPeriod?: number;      // medium EMA, e.g. 50
   emaSlowPeriod: number;        // slow EMA, e.g. 200
 
   rsiPeriod: number;
@@ -28,10 +28,10 @@ export interface BotConfig {
 
   trailingStopPct: number;      // trailing stop % drop
   initialTakeProfitPct: number; // TP % gain
+  stopLossPct: number
 
   maxConcurrentTrades: number
   maxCapitalRiskUsd: number;    // hard USD max per trade
-  leverage: number;             // default desired leverage
   vaultAddress: string;        // sub-account wallet for this bot
 
   riskMapping: RiskMapping;     // dynamic risk map

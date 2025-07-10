@@ -1,7 +1,7 @@
 import { sendTelegramMessage } from './telegram.js';
 import { logInfo } from './logger.js';
 import cron from 'node-cron';
-import { stateManager } from '../state-manager.js';
+import { stateManager } from './state-manager.js';
 
 /**
  * Daily summary

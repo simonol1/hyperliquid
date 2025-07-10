@@ -1,44 +1,47 @@
 import { Hyperliquid } from '../../sdk/index';
-import { analyseData, Analysis } from '../../bot-common/analyse-asset';
-import { evaluateTrendSignal } from '../../bot-common/trend-signal';
-import { executeExit } from '../../bot-common/trade-executor';
-import { evaluateExit } from '../../bot-common/evaluate-exit';
-import { stateManager } from '../../bot-common/state-manager';
-import { logInfo, logError } from '../../bot-common/utils/logger';
+import { analyseData, Analysis } from '../../shared-utils/analyse-asset';
+import { stateManager } from '../../shared-utils/state-manager';
+import { logInfo, logError } from '../../shared-utils/logger';
 import { BotConfig } from '../config/bot-config';
-import { initBotStats, recordTrade, buildSummary } from '../../bot-common/utils/summary';
-import { Signal } from '../../bot-common/utils/types';
-import { handleSignal } from '../../bot-common/handle-signal';
-import { CoinMeta } from '../../bot-common/utils/coin-meta';
-
-const trendStats = initBotStats();
-
-export const recordTrendTrade = (result: 'win' | 'loss', pnl: number) => {
-  recordTrade(trendStats, result, pnl);
-};
-
-export const getTrendSummary = () => buildSummary(trendStats);
-
-export const getTrendStatus = () => {
-  return `Trades so far: ${trendStats.totalTrades} | Wins: ${trendStats.wins} | Losses: ${trendStats.losses}`;
-};
+import { evaluateExit } from '../../core/evaluate-exit';
+import { executeExit } from '../../core/execute-exit';
+import { evaluateTrendSignal } from '../../signals/trend-signal';
+import { BaseSignal } from '../../shared-utils/types';
+import { CoinMeta } from '../../shared-utils/coin-meta';
+import { pushSignal } from '../../shared-utils/push-signal';
 
 export const runTrendBot = async (
   hyperliquid: Hyperliquid,
   config: BotConfig,
   metaMap: Map<string, CoinMeta>
 ) => {
-  logInfo(`[Trend Bot] Started for ${config.vaultAddress} | Coins: ${config.coins.join(', ')}`);
+  logInfo(`[Trend Bot] ✅ Started for Coins: ${config.coins.join(', ')}`);
+
+  let loopCounter = 0;
 
   while (true) {
+    const loopStart = Date.now();
+    loopCounter++;
+
     try {
+      logInfo(`[Trend Bot] 🔄 Loop #${loopCounter} start`);
+
       const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(config.vaultAddress);
-      const realPositions = perpState.assetPositions.filter(p => Math.abs(parseFloat(p.position.szi)) > 0);
+      const realPositions = perpState.assetPositions.filter(
+        (p) => Math.abs(parseFloat(p.position.szi)) > 0
+      );
 
-      const candidates: { coin: string; signal: Signal; analysis: Analysis }[] = [];
+      const candidates: { coin: string; signal: BaseSignal; analysis: Analysis }[] = [];
 
-      for (const coin of config.coins) {
-        const analysis = await analyseData(hyperliquid, coin, config);
+      // Analyse all coins in parallel for speed
+      const analyses = await Promise.all(
+        config.coins.map(async (coin) => {
+          const analysis = await analyseData(hyperliquid, coin, config);
+          return { coin, analysis };
+        })
+      );
+
+      for (const { coin, analysis } of analyses) {
         if (!analysis) continue;
 
         const signal = evaluateTrendSignal(coin, analysis, config);
@@ -47,34 +50,41 @@ export const runTrendBot = async (
         candidates.push({ coin, signal, analysis });
       }
 
-      const goodSignals = candidates.filter(
-        (c) => c.signal.strength >= config.riskMapping.minScore
-      );
-      goodSignals.sort((a, b) => b.signal.strength - a.signal.strength);
+      const goodSignals = candidates
+        .filter((c) => c.signal.strength >= config.riskMapping.minScore)
+        .sort((a, b) => b.signal.strength - a.signal.strength);
 
       const openCount = realPositions.length;
       const slots = Math.max(0, config.maxConcurrentTrades - openCount);
       const toTrade = goodSignals.slice(0, slots);
 
       if (toTrade.length === 0) {
-        logInfo(`[Trend Bot] No top signals this loop.`);
+        logInfo(`[Trend Bot] ⚪ No new top signals this loop.`);
       } else {
         logInfo(
-          `[Trend Bot] Top ${toTrade.length} signals → ${toTrade
+          `[Trend Bot] 🎯 Top ${toTrade.length}: ${toTrade
             .map((c) => `${c.coin} (${c.signal.strength.toFixed(1)})`)
             .join(', ')}`
         );
       }
 
       for (const candidate of toTrade) {
-        await handleSignal(
-          hyperliquid,
-          candidate.signal,
-          candidate.analysis,
-          config,
-          metaMap.get(candidate.coin)
-        );
+        await pushSignal({
+          bot: config.strategy,
+          coin: candidate.coin,
+          side: candidate.signal.type === 'BUY' ? 'LONG' : 'SHORT',
+          entryPrice: candidate.analysis.currentPrice,
+          strength: candidate.signal.strength,
+          timestamp: Date.now(),
+        });
       }
+
+      // Mark bot finished
+      await pushSignal({
+        bot: config.strategy,
+        status: 'BOT_DONE',
+        timestamp: Date.now(),
+      });
 
       // === Exits ===
       for (const position of realPositions) {
@@ -96,10 +106,15 @@ export const runTrendBot = async (
           stateManager.setCooldown(coin, 5 * 60 * 1000);
         }
       }
+
     } catch (err: any) {
-      logError(`[Trend Bot] Loop error: ${err.message}`);
+      logError(`[Trend Bot] ❌ Loop error: ${err.stack || err.message}`);
     }
 
-    await new Promise((res) => setTimeout(res, config.loopIntervalMs));
+    // ✅ Keep interval consistent
+    const elapsed = Date.now() - loopStart;
+    const remaining = Math.max(0, config.loopIntervalMs - elapsed);
+    logInfo(`[Trend Bot] ⏸ Sleeping ${remaining}ms to maintain interval.`);
+    await new Promise((res) => setTimeout(res, remaining));
   }
 };

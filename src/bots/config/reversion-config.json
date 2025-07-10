@@ -19,16 +19,16 @@
   "rsiOversoldThreshold": 35,
   "trailingStopPct": 0.5,
   "initialTakeProfitPct": 1.5,
-  "maxCapitalRiskUsd": 500,
-  "leverage": 3,
+  "stopLossPct": 1.5,
+  "maxCapitalRiskUsd": 50,
   "riskMapping": {
-    "minScore": 15,
-    "goldenScore": 40,
+    "minScore": 50,
+    "goldenScore": 90,
     "minCapitalRiskPct": 0.05,
     "maxCapitalRiskPct": 0.10,
     "minLeverage": 3,
     "maxLeverage": 10
   },
   "maxConcurrentTrades": 3,
-  "vaultAddress": "0x0e788433e39ae49572f5da16b951b61b030b7761"
+  "vaultAddress": "0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62"
 }

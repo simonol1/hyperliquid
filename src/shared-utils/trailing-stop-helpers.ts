@@ -1,5 +1,5 @@
 import { BotConfig } from "../../bots/config/bot-config";
-import { Analysis } from "../analyse-asset";
+import { Analysis } from "./analyse-asset";
 import { Position } from "../trade-executor";
 
 export const checkTrailingStop = (position: Position, analysis: Analysis, config: BotConfig): boolean => {

@@ -7,3 +7,4 @@ src/**/*.js
 .vscode/
 /dist
 *.env
+.env.*

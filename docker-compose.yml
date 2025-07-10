@@ -1,26 +1,68 @@
+version: '3.8'
 
 services:
-  hyperliquid-bot:
-    build: .
-    image: hyperliquid-bot:latest
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  orchestrator:
+    build:
+      context: .
+      target: runner
+    container_name: orchestrator
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - HYPERLIQUID_AGENT_PRIVATE_KEY=${HYPERLIQUID_AGENT_PRIVATE_KEY}
+      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
+      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+    command: ["node", "dist/orchestrator/index.js"]
+    depends_on:
+      - redis
 
   trend_bot:
-    image: hyperliquid-bot:latest
+    build:
+      context: .
+      target: runner
+    container_name: trend_bot
     env_file: .env
     environment:
-      - BOT_STRATEGY=trend
-      - HYPERLIQUID_WALLET=0xd380aafee4cb8f6d3fbb4480d7c808fa60c12055
+      - REDIS_URL=redis://redis:6379
+      - BOT_TYPE=trend
+      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
+      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+    command: ["node", "dist/bots/index.js"]
+    depends_on:
+      - redis
 
   breakout_bot:
-    image: hyperliquid-bot:latest
+    build:
+      context: .
+      target: runner
+    container_name: breakout_bot
     env_file: .env
     environment:
-      - BOT_STRATEGY=breakout
-      - HYPERLIQUID_WALLET=0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62
+      - REDIS_URL=redis://redis:6379
+      - BOT_TYPE=breakout
+      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
+      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+    command: ["node", "dist/bots/index.js"]
+    depends_on:
+      - redis
 
   reversion_bot:
-    image: hyperliquid-bot:latest
+    build:
+      context: .
+      target: runner
+    container_name: reversion_bot
     env_file: .env
     environment:
-      - BOT_STRATEGY=reversion
-      - HYPERLIQUID_WALLET=0x0e788433e39ae49572f5da16b951b61b030b7761
+      - REDIS_URL=redis://redis:6379
+      - BOT_TYPE=reversion
+      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
+      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+    command: ["node", "dist/bots/index.js"]
+    depends_on:
+      - redis
