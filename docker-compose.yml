@@ -6,6 +6,7 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
+    restart: unless-stopped
 
   orchestrator:
     build:
@@ -18,9 +19,13 @@ services:
       - HYPERLIQUID_AGENT_PRIVATE_KEY=${HYPERLIQUID_AGENT_PRIVATE_KEY}
       - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
       - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+      - DRY_RUN=${DRY_RUN:-true}
     command: ["node", "dist/orchestrator/index.js"]
     depends_on:
       - redis
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
 
   trend_bot:
     build:
@@ -33,9 +38,13 @@ services:
       - BOT_TYPE=trend
       - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
       - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+      - DRY_RUN=${DRY_RUN:-true}
     command: ["node", "dist/bots/index.js"]
     depends_on:
       - redis
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
 
   breakout_bot:
     build:
@@ -48,9 +57,13 @@ services:
       - BOT_TYPE=breakout
       - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
       - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+      - DRY_RUN=${DRY_RUN:-true}
     command: ["node", "dist/bots/index.js"]
     depends_on:
       - redis
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
 
   reversion_bot:
     build:
@@ -63,6 +76,10 @@ services:
       - BOT_TYPE=reversion
       - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
       - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
+      - DRY_RUN=${DRY_RUN:-true}
     command: ["node", "dist/bots/index.js"]
     depends_on:
       - redis
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs

@@ -669,3 +669,21 @@ Using the bug report template ensures we have all the necessary information to a
 ## License
 
 MIT
+
+## 🚀 Deployment
+
+This project uses **Docker Compose** on a single DigitalOcean droplet.
+
+### ✅ Steps
+
+./setup-droplet.sh <DROPLET_IP>
+
+./upload-env.sh <DROPLET_IP>
+
+scp -r . root@<DROPLET_IP>:/opt/mybot
+
+ssh root@<DROPLET_IP>
+
+cd /opt/mybot
+
+docker compose up -d
