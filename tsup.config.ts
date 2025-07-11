@@ -6,7 +6,7 @@ export default defineConfig({
     orchestrator: 'src/orchestrator/index.ts'
   },
   outDir: 'dist',
-  format: 'esm',
+  format: 'cjs',
   target: 'node18',
   splitting: false,
   sourcemap: true,
