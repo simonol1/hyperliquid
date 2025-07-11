@@ -20,7 +20,7 @@ services:
       - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
       - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
       - DRY_RUN=${DRY_RUN:-true}
-    command: ["node", "dist/orchestrator/index.js"]
+    command: ["node", "dist/orchestrator.js"]
     depends_on:
       - redis
     restart: unless-stopped
