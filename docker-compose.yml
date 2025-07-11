@@ -14,16 +14,10 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - HYPERLIQUID_AGENT_PRIVATE_KEY=${HYPERLIQUID_AGENT_PRIVATE_KEY}
-      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
-      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
-      - DRY_RUN=${DRY_RUN:-true}
     command: ["node", "dist/orchestrator.mjs"]
     depends_on:
       - redis
     restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs
 
   trend_bot:
     build:
@@ -33,16 +27,10 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - BOT_TYPE=trend
-      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
-      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
-      - DRY_RUN=${DRY_RUN:-true}
-    command: ["node", "dist/bot.mjs"]
+    command: ["node", "dist/trend.mjs"]
     depends_on:
       - redis
     restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs
 
   breakout_bot:
     build:
@@ -52,16 +40,10 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - BOT_TYPE=breakout
-      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
-      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
-      - DRY_RUN=${DRY_RUN:-true}
-    command: ["node", "dist/bot.mjs"]
+    command: ["node", "dist/breakout.mjs"]
     depends_on:
       - redis
     restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs
 
   reversion_bot:
     build:
@@ -71,13 +53,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - BOT_TYPE=reversion
-      - HYPERLIQUID_WALLET=${HYPERLIQUID_WALLET}
-      - HYPERLIQUID_VAULT_ADDRESS=${HYPERLIQUID_VAULT_ADDRESS}
-      - DRY_RUN=${DRY_RUN:-true}
-    command: ["node", "dist/bot.mjs"]
+    command: ["node", "dist/reversion.mjs"]
     depends_on:
       - redis
     restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs
