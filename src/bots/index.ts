@@ -15,9 +15,14 @@ import { runBreakoutBot } from './strategies/breakout.js';
 import { runReversionBot } from './strategies/reversion.js';
 import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
 
-const vaultAddress = process.env.HYPERLIQUID_VAULT_ADDRESS
+const BOT_TYPE = process.env.BOT_TYPE;
+const vaultAddress = process.env.HYPERLIQUID_VAULT_ADDRESS;
 
-// Process safety
+if (!BOT_TYPE) {
+  throw new Error(`BOT_TYPE not set. Please set BOT_TYPE=trend | breakout | reversion`);
+}
+
+// === Global process guards ===
 process.on('uncaughtException', (err) => {
   logError(`❌ Uncaught Exception: ${err}`);
   process.exit(1);
@@ -27,7 +32,7 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
-// === 1️⃣ Create ONE Hyperliquid instance for signal fetching only ===
+// === Hyperliquid client ===
 const hyperliquid = new Hyperliquid({
   enableWs: true,
   privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
@@ -36,24 +41,31 @@ const hyperliquid = new Hyperliquid({
 });
 
 await hyperliquid.connect();
-logInfo(`✅ Bot signal runner connected to Hyperliquid`);
+logInfo(`✅ Connected to Hyperliquid for BOT_TYPE=${BOT_TYPE}`);
 
-// === 2️⃣ Load coin meta ===
 const metaMap = await buildMetaMap(hyperliquid);
 
-// === 3️⃣ Load config ===
+// === Configs ===
 const trendConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/trend-config.json'), 'utf-8'));
 const breakoutConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/breakout-config.json'), 'utf-8'));
 const reversionConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/reversion-config.json'), 'utf-8'));
 
-// === 4️⃣ Run bots in parallel ===
-logInfo(`✅ Running all bot strategies: Trend, Breakout, Reversion`);
+// === Run single strategy ===
+logInfo(`🚀 Starting strategy: ${BOT_TYPE}`);
 
-Promise.all([
-  runTrendBot(hyperliquid, trendConfig, metaMap),
-  runBreakoutBot(hyperliquid, breakoutConfig, metaMap),
-  runReversionBot(hyperliquid, reversionConfig, metaMap),
-]);
+switch (BOT_TYPE) {
+  case 'trend':
+    await runTrendBot(hyperliquid, trendConfig, metaMap);
+    break;
+  case 'breakout':
+    await runBreakoutBot(hyperliquid, breakoutConfig, metaMap);
+    break;
+  case 'reversion':
+    await runReversionBot(hyperliquid, reversionConfig, metaMap);
+    break;
+  default:
+    throw new Error(`Invalid BOT_TYPE: ${BOT_TYPE}`);
+}
 
-// === 5️⃣ Optionally heartbeat ===
-scheduleHeartbeat('Bots', () => `Running: Trend + Breakout + Reversion`, 1);
+// === Optional heartbeat ===
+scheduleHeartbeat(`Bot ${BOT_TYPE}`, () => `Running ${BOT_TYPE}`, 1);

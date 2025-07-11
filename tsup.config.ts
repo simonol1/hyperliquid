@@ -1,29 +1,14 @@
 import { defineConfig } from 'tsup';
 
-export default defineConfig([
-  {
-    entry: [
-      'src/bots/index.ts',
-      'src/orchestrator/index.ts',
-    ],
-    format: ['esm'],
-    clean: true,
-    sourcemap: true,
-    minify: true,
-    target: 'node18',
-    platform: 'node',
-    outDir: 'dist',
+export default defineConfig({
+  entry: {
+    bot: 'src/bots/index.ts',
+    orchestrator: 'src/orchestrator/index.ts'
   },
-  // If you do ship the SDK as a browser lib, keep this block:
-  // {
-  //   entry: ['src/browser.ts'],
-  //   format: ['iife'],
-  //   globalName: 'HyperliquidSDK',
-  //   platform: 'browser',
-  //   target: 'es2020',
-  //   minify: true,
-  //   sourcemap: true,
-  //   clean: false,
-  //   outDir: 'dist',
-  // },
-]);
+  outDir: 'dist',
+  format: 'esm',
+  target: 'node18',
+  splitting: false,
+  sourcemap: true,
+  clean: true,
+});
