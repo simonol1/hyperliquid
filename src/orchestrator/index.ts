@@ -14,17 +14,19 @@ import { isBotStatus, isTradeSignal, type TradeSignal } from '../shared-utils/ty
 
 type BotKey = 'trend' | 'breakout' | 'reversion';
 
+const vaultAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
+if (!vaultAddress) throw new Error(`[Orchestrator] ❌ sub account wallet address missing!`);
+
 // ✅ Setup Hyperliquid
+
 const hyperliquid = new Hyperliquid({
     enableWs: true,
     privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
-    walletAddress: process.env.HYPERLIQUID_WALLET,
-    vaultAddress: process.env.HYPERLIQUID_VAULT_ADDRESS,
+    walletAddress: process.env.HYPERLIQUID_AGENT_WALLET,
+    vaultAddress,
 });
-await hyperliquid.connect();
 
-const vaultAddress = process.env.HYPERLIQUID_VAULT_ADDRESS;
-if (!vaultAddress) throw new Error(`[Orchestrator] ❌ Vault address missing!`);
+await hyperliquid.connect();
 
 const COIN_META_MAP = await buildMetaMap(hyperliquid);
 

@@ -13,7 +13,7 @@ import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runBreakoutBot } from './strategies/breakout.js';
 import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
 
-const vaultAddress = process.env.HYPERLIQUID_VAULT_ADDRESS;
+const vaultAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
 
 process.on('uncaughtException', (err) => {
     logError(`❌ Uncaught Exception: ${err}`);
@@ -27,7 +27,7 @@ process.on('unhandledRejection', (reason) => {
 const hyperliquid = new Hyperliquid({
     enableWs: true,
     privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
-    walletAddress: process.env.HYPERLIQUID_WALLET,
+    walletAddress: process.env.HYPERLIQUID_AGENT_WALLET,
     vaultAddress,
 });
 
