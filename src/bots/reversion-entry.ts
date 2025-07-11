@@ -35,9 +35,12 @@ await hyperliquid.connect();
 logInfo(`✅ Connected to Hyperliquid (Reversion Bot)`);
 
 const metaMap = await buildMetaMap(hyperliquid);
-const reversionConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/reversion-config.json'), 'utf-8'));
+
+const CONFIG_BASE = path.resolve('./dist/config');
+const reversionConfig = JSON.parse(fs.readFileSync(path.join(CONFIG_BASE, 'reversion-config.json'), 'utf-8'));
 
 logInfo(`🚀 Starting Reversion Bot`);
+
 await runReversionBot(hyperliquid, reversionConfig, metaMap);
 
 scheduleHeartbeat(`Reversion Bot`, () => `Running`, 1);

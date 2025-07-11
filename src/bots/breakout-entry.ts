@@ -35,9 +35,12 @@ await hyperliquid.connect();
 logInfo(`✅ Connected to Hyperliquid (Breakout Bot)`);
 
 const metaMap = await buildMetaMap(hyperliquid);
-const breakoutConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/breakout-config.json'), 'utf-8'));
+
+const CONFIG_BASE = path.resolve('./dist/config');
+const breakoutConfig = JSON.parse(fs.readFileSync(path.join(CONFIG_BASE, 'breakout-config.json'), 'utf-8'));
 
 logInfo(`🚀 Starting Breakout Bot`);
+
 await runBreakoutBot(hyperliquid, breakoutConfig, metaMap);
 
 scheduleHeartbeat(`Breakout Bot`, () => `Running`, 1);

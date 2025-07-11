@@ -7,7 +7,6 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Add trusted certs (sometimes needed)
 RUN apt-get update && apt-get install -y ca-certificates
 
 RUN npm ci
@@ -15,6 +14,9 @@ RUN npm ci
 COPY . .
 
 RUN npx tsup
+
+# ✅ Copy raw config JSONs into the build output dir
+COPY ./src/bots/config ./dist/config
 
 # ========================
 # 👉 Runtime stage
@@ -25,10 +27,9 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY --from=builder /app/dist ./dist
-COPY ./src/bots/config ./dist/config
 
 RUN npm ci --omit=dev
 
 ENV NODE_ENV=production
 
-CMD ["node", "dist/trend.mjs"]  # default, will override in compose
+CMD ["node", "dist/trend.mjs"]  # overridden in compose

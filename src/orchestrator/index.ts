@@ -28,9 +28,12 @@ if (!vaultAddress) throw new Error(`[Orchestrator] ❌ Vault address missing!`);
 
 const COIN_META_MAP = await buildMetaMap(hyperliquid);
 
-const trendConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/trend-config.json'), 'utf-8'));
-const breakoutConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/breakout-config.json'), 'utf-8'));
-const reversionConfig = JSON.parse(fs.readFileSync(path.resolve('./src/bots/config/reversion-config.json'), 'utf-8'));
+// ⏩ Use relative to dist folder at runtime
+const CONFIG_BASE = path.resolve('./dist/config');
+
+const trendConfig = JSON.parse(fs.readFileSync(path.join(CONFIG_BASE, 'trend-config.json'), 'utf-8'));
+const breakoutConfig = JSON.parse(fs.readFileSync(path.join(CONFIG_BASE, 'breakout-config.json'), 'utf-8'));
+const reversionConfig = JSON.parse(fs.readFileSync(path.join(CONFIG_BASE, 'reversion-config.json'), 'utf-8'));
 
 const BOT_CONFIG: Record<BotKey, any> = {
     trend: trendConfig,
