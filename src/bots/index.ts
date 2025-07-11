@@ -15,6 +15,8 @@ import { runBreakoutBot } from './strategies/breakout.js';
 import { runReversionBot } from './strategies/reversion.js';
 import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
 
+const vaultAddress = process.env.HYPERLIQUID_VAULT_ADDRESS
+
 // Process safety
 process.on('uncaughtException', (err) => {
   logError(`❌ Uncaught Exception: ${err}`);
@@ -30,7 +32,7 @@ const hyperliquid = new Hyperliquid({
   enableWs: true,
   privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
   walletAddress: process.env.HYPERLIQUID_WALLET,
-  vaultAddress: process.env.HYPERLIQUID_VAULT_ADDRESS,
+  vaultAddress,
 });
 
 await hyperliquid.connect();

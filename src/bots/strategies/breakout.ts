@@ -9,6 +9,7 @@ import { evaluateBreakoutSignal } from '../../signals/breakout-signal';
 import { BaseSignal } from '../../shared-utils/types';
 import { CoinMeta } from '../../shared-utils/coin-meta';
 import { pushSignal } from '../../shared-utils/push-signal';
+import { hasMinimumBalance } from '../../shared-utils/check-balance';
 
 export const runBreakoutBot = async (
   hyperliquid: Hyperliquid,
@@ -31,61 +32,67 @@ export const runBreakoutBot = async (
         p => Math.abs(parseFloat(p.position.szi)) > 0
       );
 
-      const candidates: { coin: string; signal: BaseSignal; analysis: Analysis }[] = [];
+      const balanceOk = await hasMinimumBalance(hyperliquid, config.vaultAddress);
 
-      // Parallel analyse
-      const analyses = await Promise.all(
-        config.coins.map(async (coin) => {
-          const analysis = await analyseData(hyperliquid, coin, config);
-          return { coin, analysis };
-        })
-      );
-
-      for (const { coin, analysis } of analyses) {
-        if (!analysis) continue;
-
-        const signal = evaluateBreakoutSignal(coin, analysis, config);
-        if (signal.type === 'HOLD') continue;
-
-        candidates.push({ coin, signal, analysis });
-      }
-
-      const goodSignals = candidates
-        .filter((c) => c.signal.strength >= config.riskMapping.minScore)
-        .sort((a, b) => b.signal.strength - a.signal.strength);
-
-      const openCount = realPositions.length;
-      const slots = Math.max(0, config.maxConcurrentTrades - openCount);
-      const toTrade = goodSignals.slice(0, slots);
-
-      if (toTrade.length === 0) {
-        logInfo(`[Breakout Bot] ⚪ No top signals this loop.`);
+      if (!balanceOk) {
+        logInfo(`[Breakout Bot] ⚠️ Balance too low for new trades. Will only run exits.`);
       } else {
-        logInfo(
-          `[Breakout Bot] 🎯 Top ${toTrade.length}: ${toTrade
-            .map((c) => `${c.coin} (${c.signal.strength.toFixed(1)})`)
-            .join(', ')}`
+        const candidates: { coin: string; signal: BaseSignal; analysis: Analysis }[] = [];
+
+        const analyses = await Promise.all(
+          config.coins.map(async (coin) => {
+            const analysis = await analyseData(hyperliquid, coin, config);
+            return { coin, analysis };
+          })
         );
+
+        for (const { coin, analysis } of analyses) {
+          if (!analysis) continue;
+
+          const signal = evaluateBreakoutSignal(coin, analysis, config);
+          if (signal.type === 'HOLD') continue;
+
+          candidates.push({ coin, signal, analysis });
+        }
+
+        const goodSignals = candidates
+          .filter((c) => c.signal.strength >= config.riskMapping.minScore)
+          .sort((a, b) => b.signal.strength - a.signal.strength);
+
+        const openCount = realPositions.length;
+        const slots = Math.max(0, config.maxConcurrentTrades - openCount);
+        const toTrade = goodSignals.slice(0, slots);
+
+        if (toTrade.length === 0) {
+          logInfo(`[Breakout Bot] ⚪ No top signals this loop.`);
+        } else {
+          logInfo(
+            `[Breakout Bot] 🎯 Top ${toTrade.length}: ${toTrade
+              .map((c) => `${c.coin} (${c.signal.strength.toFixed(1)})`)
+              .join(', ')}`
+          );
+        }
+
+        for (const candidate of toTrade) {
+          await pushSignal({
+            bot: config.strategy,
+            coin: candidate.coin,
+            side: candidate.signal.type === 'BUY' ? 'LONG' : 'SHORT',
+            entryPrice: candidate.analysis.currentPrice,
+            strength: candidate.signal.strength,
+            timestamp: Date.now(),
+          });
+        }
       }
 
-      for (const candidate of toTrade) {
-        await pushSignal({
-          bot: config.strategy,
-          coin: candidate.coin,
-          side: candidate.signal.type === 'BUY' ? 'LONG' : 'SHORT',
-          entryPrice: candidate.analysis.currentPrice,
-          strength: candidate.signal.strength,
-          timestamp: Date.now(),
-        });
-      }
-
+      // ✅ Push BOT_DONE anyway to keep orchestrator happy
       await pushSignal({
         bot: config.strategy,
         status: 'BOT_DONE',
         timestamp: Date.now(),
       });
 
-      // ✅ Exits
+      // ✅ Always run exits
       for (const position of realPositions) {
         const coin = position.position.coin;
         const analysis = await analyseData(hyperliquid, coin, config);
@@ -104,7 +111,7 @@ export const runBreakoutBot = async (
           isShort,
         };
 
-        const exitIntent = await evaluateExit(virtualPosition, analysis, config);
+        const exitIntent = evaluateExit(virtualPosition, analysis, config);
         if (exitIntent) {
           await executeExit(hyperliquid, config.vaultAddress, exitIntent, metaMap.get(coin));
           stateManager.clearHighWatermark(coin);

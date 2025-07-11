@@ -1,7 +1,8 @@
 import { logInfo } from './logger.js';
-import type { Hyperliquid } from '../../sdk/index.js';
+import type { Hyperliquid } from '../sdk/index.js';
 import { stateManager } from './state-manager.js';
 import type { CoinMeta } from './coin-meta.js';
+import { hasMinimumBalance } from './check-balance.js';
 
 const MIN_BALANCE_USD = 11;
 const MAX_DAILY_LOSS_USD = 200;
@@ -16,7 +17,7 @@ const MIN_NOTIONAL_USD = 10;
  */
 export const checkRiskGuards = async (
     hyperliquid: Hyperliquid,
-    walletAddress: string,
+    vaultAddress: string,
     qty: number,
     px: number,
     coinMeta?: CoinMeta
@@ -29,12 +30,9 @@ export const checkRiskGuards = async (
 
     const { coin, dayNtlVlm, minVlmUsd, szDecimals } = coinMeta;
 
-    // === 1️⃣ Balance check ===
-    const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(walletAddress);
-    const availableUsd = Number(perpState?.withdrawable) || 0;
-
-    if (availableUsd < MIN_BALANCE_USD) {
-        logInfo(`[RiskGuard] ❌ Balance too low: $${availableUsd.toFixed(2)} < $${MIN_BALANCE_USD}`);
+    const balanceOk = hasMinimumBalance(hyperliquid, vaultAddress, MIN_BALANCE_USD)
+    if (!balanceOk) {
+        logInfo(`[RiskGuard] ⚠️ Balance too low for new trades. Will only run exits.`);
         return { canTrade: false, qty };
     }
 

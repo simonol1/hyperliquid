@@ -1,4 +1,4 @@
-import { Hyperliquid } from "../../sdk";
+import { Hyperliquid } from "../sdk/index";
 
 export interface CoinMeta {
     coin: string;

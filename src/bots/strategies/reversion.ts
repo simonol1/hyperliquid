@@ -9,6 +9,7 @@ import { evaluateReversionSignal } from '../../signals/reversion-signal';
 import { BaseSignal } from '../../shared-utils/types';
 import { CoinMeta } from '../../shared-utils/coin-meta';
 import { pushSignal } from '../../shared-utils/push-signal';
+import { hasMinimumBalance } from '../../shared-utils/check-balance';
 
 export const runReversionBot = async (
   hyperliquid: Hyperliquid,
@@ -27,53 +28,61 @@ export const runReversionBot = async (
       logInfo(`[Reversion Bot] 🔄 Loop #${loopCounter} start`);
 
       const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(config.vaultAddress);
-      const realPositions = perpState.assetPositions.filter(p => Math.abs(parseFloat(p.position.szi)) > 0);
-
-      const candidates: { coin: string; signal: BaseSignal; analysis: Analysis }[] = [];
-
-      const analyses = await Promise.all(
-        config.coins.map(async (coin) => {
-          const analysis = await analyseData(hyperliquid, coin, config);
-          return { coin, analysis };
-        })
+      const realPositions = perpState.assetPositions.filter(
+        p => Math.abs(parseFloat(p.position.szi)) > 0
       );
 
-      for (const { coin, analysis } of analyses) {
-        if (!analysis) continue;
+      const balanceOk = await hasMinimumBalance(hyperliquid, config.vaultAddress);
 
-        const signal = evaluateReversionSignal(coin, analysis, config);
-        if (signal.type === 'HOLD') continue;
-
-        candidates.push({ coin, signal, analysis });
-      }
-
-      const goodSignals = candidates
-        .filter((c) => c.signal.strength >= config.riskMapping.minScore)
-        .sort((a, b) => b.signal.strength - a.signal.strength);
-
-      const openCount = realPositions.length;
-      const slots = Math.max(0, config.maxConcurrentTrades - openCount);
-      const toTrade = goodSignals.slice(0, slots);
-
-      if (toTrade.length === 0) {
-        logInfo(`[Reversion Bot] ⚪ No top signals this loop.`);
+      if (!balanceOk) {
+        logInfo(`[Reversion Bot] ⚠️ Balance too low for new trades. Running exits only.`);
       } else {
-        logInfo(
-          `[Reversion Bot] 🎯 Top ${toTrade.length}: ${toTrade
-            .map((c) => `${c.coin} (${c.signal.strength.toFixed(1)})`)
-            .join(', ')}`
-        );
-      }
+        const candidates: { coin: string; signal: BaseSignal; analysis: Analysis }[] = [];
 
-      for (const candidate of toTrade) {
-        await pushSignal({
-          bot: config.strategy,
-          coin: candidate.coin,
-          side: candidate.signal.type === 'BUY' ? 'LONG' : 'SHORT',
-          entryPrice: candidate.analysis.currentPrice,
-          strength: candidate.signal.strength,
-          timestamp: Date.now(),
-        });
+        const analyses = await Promise.all(
+          config.coins.map(async (coin) => {
+            const analysis = await analyseData(hyperliquid, coin, config);
+            return { coin, analysis };
+          })
+        );
+
+        for (const { coin, analysis } of analyses) {
+          if (!analysis) continue;
+
+          const signal = evaluateReversionSignal(coin, analysis, config);
+          if (signal.type === 'HOLD') continue;
+
+          candidates.push({ coin, signal, analysis });
+        }
+
+        const goodSignals = candidates
+          .filter((c) => c.signal.strength >= config.riskMapping.minScore)
+          .sort((a, b) => b.signal.strength - a.signal.strength);
+
+        const openCount = realPositions.length;
+        const slots = Math.max(0, config.maxConcurrentTrades - openCount);
+        const toTrade = goodSignals.slice(0, slots);
+
+        if (toTrade.length === 0) {
+          logInfo(`[Reversion Bot] ⚪ No top signals this loop.`);
+        } else {
+          logInfo(
+            `[Reversion Bot] 🎯 Top ${toTrade.length}: ${toTrade
+              .map((c) => `${c.coin} (${c.signal.strength.toFixed(1)})`)
+              .join(', ')}`
+          );
+        }
+
+        for (const candidate of toTrade) {
+          await pushSignal({
+            bot: config.strategy,
+            coin: candidate.coin,
+            side: candidate.signal.type === 'BUY' ? 'LONG' : 'SHORT',
+            entryPrice: candidate.analysis.currentPrice,
+            strength: candidate.signal.strength,
+            timestamp: Date.now(),
+          });
+        }
       }
 
       await pushSignal({
@@ -92,14 +101,16 @@ export const runReversionBot = async (
         const entryPx = parseFloat(position.position.entryPx);
         const isShort = szi < 0;
 
+        stateManager.setHighWatermark(coin, analysis.currentPrice, isShort);
+
         const virtualPosition = {
           qty: Math.abs(szi),
           entryPrice: entryPx,
-          highestPrice: entryPx,
+          highestPrice: stateManager.getHighWatermark(coin) ?? entryPx,
           isShort,
         };
 
-        const exitIntent = await evaluateExit(virtualPosition, analysis, config);
+        const exitIntent = evaluateExit(virtualPosition, analysis, config);
         if (exitIntent) {
           await executeExit(hyperliquid, config.vaultAddress, exitIntent, metaMap.get(coin));
           stateManager.clearHighWatermark(coin);
