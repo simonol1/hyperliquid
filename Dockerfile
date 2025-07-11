@@ -26,6 +26,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY --from=builder /app/dist ./dist
 
+COPY ./src/bots/config ./dist/bots/config
+
 RUN npm ci --omit=dev
 
 ENV NODE_ENV=production
