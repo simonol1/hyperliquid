@@ -36,7 +36,7 @@
     "postinstall": "node -e \"if (process.env.NODE_ENV !== 'production' && require('fs').existsSync('.git')) { try { require('husky').install() } catch (e) { console.log('Husky setup skipped') } }\"",
     "dev:setup": "husky install",
     "start:bots": "node dist/bots/index.mjs",
-    "start:orchestrator": "node dist/orchestrator/index.mjs"
+    "start:orchestrator": "node dist/orchestrator.mjs"
   },
   "keywords": [
     "hyperliquid",

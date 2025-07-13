@@ -49,10 +49,12 @@ export const runBreakoutBot = async (
         for (const { coin, analysis } of analyses) {
           if (!analysis) continue;
 
-          const volume = analysis.volumeUsd ?? 0;
-          const minVolume = config.minVolumeUsd ?? 0;
-          if (volume < minVolume) {
-            logInfo(`[Breakout Bot] ⛔ Skipping ${coin}, volume ${volume.toFixed(0)} < min ${minVolume}`);
+          const currentVolume = analysis.volumeUsd ?? 0;
+          const overrides = config.coinConfig?.[coin];
+          const minVolumeRequired = overrides?.minVolumeUsd ?? config.minVolumeUsd ?? 0;
+
+          if (currentVolume < minVolumeRequired) {
+            logInfo(`[Breakout Bot] ⛔ Skipping ${coin}, volume $${currentVolume.toFixed(0)} < min $${minVolumeRequired}`);
             continue;
           }
 

@@ -9,7 +9,8 @@
     "WIF-PERP",
     "WLD-PERP",
     "ENA-PERP",
-    "SEI-PERP"
+    "SEI-PERP",
+    "XRP-PERP"
   ],
   "loopIntervalMs": 60000,
   "timeframe": "1h",

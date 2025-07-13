@@ -32,6 +32,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
+      - BOT_NAME=TREND
     command: ["node", "dist/trend.mjs"]
     depends_on:
       - redis
@@ -47,6 +48,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
+      - BOT_NAME=BREAKOUT
     command: ["node", "dist/breakout.mjs"]
     depends_on:
       - redis
@@ -62,6 +64,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
+      - BOT_NAME=REVERSION
     command: ["node", "dist/reversion.mjs"]
     depends_on:
       - redis

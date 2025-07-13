@@ -23,8 +23,8 @@ export interface Analysis {
     upper: number;
   };
   volumeUsd: number;
-  higheffectiveLevel?: number;
-  loweffectiveLevel?: number;
+  highEffectiveLevel?: number;
+  lowEffectiveLevel?: number;
 }
 
 export const analyseData = async (
@@ -87,8 +87,8 @@ export const analyseData = async (
     const bollingerBands = calculateBollingerBands(closes, bollingerPeriod);
 
     const recentCandles = candles.slice(-effectiveLookback);
-    const higheffectiveLevel = Math.max(...closes.slice(-effectiveLookback));
-    const loweffectiveLevel = Math.min(...closes.slice(-effectiveLookback));
+    const highEffectiveLevel = Math.max(...closes.slice(-effectiveLookback));
+    const lowEffectiveLevel = Math.min(...closes.slice(-effectiveLookback));
 
     const totalVolumeInUsd = recentCandles
       .map(candle => {
@@ -110,8 +110,8 @@ export const analyseData = async (
       macd,
       macdSignalLine,
       bollingerBands,
-      higheffectiveLevel,
-      loweffectiveLevel,
+      highEffectiveLevel,
+      lowEffectiveLevel,
       volumeUsd
     };
 

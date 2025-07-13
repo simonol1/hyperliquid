@@ -1,6 +1,6 @@
-import { BotConfig } from "../../bots/config/bot-config";
+import { BotConfig } from "../bots/config/bot-config";
+import { Position } from "../core/evaluate-exit";
 import { Analysis } from "./analyse-asset";
-import { Position } from "../trade-executor";
 
 export const checkTrailingStop = (position: Position, analysis: Analysis, config: BotConfig): boolean => {
     const dropPct = ((position.highestPrice - analysis.currentPrice) / position.highestPrice) * 100;

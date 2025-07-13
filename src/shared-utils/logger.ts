@@ -3,7 +3,8 @@ import path from 'path';
 import pino from 'pino';
 import type { Analysis } from './analyse-asset';
 
-const LOG_PREFIX = '[BOT]';
+const BOT_NAME = process.env.BOT_NAME || "UNKNOWN";
+const LOG_PREFIX = `[BOT:${BOT_NAME}]`;
 
 // === File setup ===
 const today = new Date().toISOString().split('T')[0];

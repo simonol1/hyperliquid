@@ -17,7 +17,7 @@ const MIN_NOTIONAL_USD = 10;
  */
 export const checkRiskGuards = async (
     hyperliquid: Hyperliquid,
-    vaultAddress: string,
+    subaccountAddress: string,
     qty: number,
     px: number,
     coinMeta?: CoinMeta
@@ -30,7 +30,7 @@ export const checkRiskGuards = async (
 
     const { coin, dayNtlVlm, minVlmUsd, szDecimals } = coinMeta;
 
-    const balanceOk = hasMinimumBalance(hyperliquid, vaultAddress, MIN_BALANCE_USD)
+    const balanceOk = hasMinimumBalance(hyperliquid, subaccountAddress, MIN_BALANCE_USD)
     if (!balanceOk) {
         logInfo(`[RiskGuard] ⚠️ Balance too low for new trades. Will only run exits.`);
         return { canTrade: false, qty };

@@ -8,7 +8,11 @@
     "LINK-PERP",
     "HYPE-PERP",
     "ENA-PERP",
-    "SEI-PERP"
+    "SEI-PERP",
+    "XRP-PERP",
+    "kPEPE-PERP",
+    "PENGU-PERP",
+    "kBONK-PERP"
   ],
   "loopIntervalMs": 60000,
   "timeframe": "1h",

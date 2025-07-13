@@ -54,19 +54,27 @@ export const scheduleDailyReport = () => {
 };
 
 export const scheduleHourlyReport = () => {
-    cron.schedule('0 * * * *', async () => {
+    // cron.schedule('0 * * * *', async () => {
+    //     const since = Date.now() - 60 * 60 * 1000;
+    //     for (const bot of bots) {
+    //         try {
+    //             const trades = await fetchClosedTrades(bot, since);
+    //             const summary = buildSummary(bot, trades, '🕒 Hourly Report');
+    //             await sendTelegramMessage(summary);
+    //             logInfo(`[Reporter] ✅ Sent hourly for ${bot}`);
+    //         } catch (err) {
+    //             logError(`[Reporter] ❌ Hourly failed for ${bot}: ${err}`);
+    //         }
+    //     }
+    // });
+    (async () => {
         const since = Date.now() - 60 * 60 * 1000;
-        for (const bot of bots) {
-            try {
-                const trades = await fetchClosedTrades(bot, since);
-                const summary = buildSummary(bot, trades, '🕒 Hourly Report');
-                await sendTelegramMessage(summary);
-                logInfo(`[Reporter] ✅ Sent hourly for ${bot}`);
-            } catch (err) {
-                logError(`[Reporter] ❌ Hourly failed for ${bot}: ${err}`);
-            }
-        }
-    });
+
+        const trades = await fetchClosedTrades("TEST", since);
+        const summary = buildSummary("TEST", trades, '🕒 Hourly Report');
+        await sendTelegramMessage(`*${"TEST"} Daily Report (Manual Run)*\n\n${summary}`);
+    })();
+
 
     logInfo(`🕐 Hourly report scheduled on the hour`);
 };
