@@ -132,7 +132,9 @@ export const runBreakoutBot = async (
 
     const elapsed = Date.now() - loopStart;
     const remaining = Math.max(0, config.loopIntervalMs - elapsed);
+
     logInfo(`[Breakout Bot] ⏸ Sleeping ${remaining}ms to maintain interval.`);
+
     await new Promise((res) => setTimeout(res, remaining));
   }
 };
