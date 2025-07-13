@@ -72,7 +72,7 @@ export const analyseData = async (
       return null;
     }
 
-    const closes = candles.map((c: Candle) => c.c);
+    const closes = candles.map((candle: Candle) => candle.c);
     const price = closes.at(-1);
     if (!price) {
       logError(`[AnalyseData] ❌ Invalid last price for ${asset}`);
@@ -86,10 +86,19 @@ export const analyseData = async (
     const { macd, signal: macdSignalLine } = calculateMACD(closes, macdFast, macdSlow, macdSignal);
     const bollingerBands = calculateBollingerBands(closes, bollingerPeriod);
 
+    const recentCandles = candles.slice(-effectiveLookback);
     const higheffectiveLevel = Math.max(...closes.slice(-effectiveLookback));
     const loweffectiveLevel = Math.min(...closes.slice(-effectiveLookback));
-    const recentVolumes = candles.slice(-effectiveLookback).map(c => c.v ?? 0);
-    const volumeUsd = recentVolumes.reduce((a, b) => a + b, 0) / effectiveLookback;
+
+    const totalVolumeInUsd = recentCandles
+      .map(candle => {
+        const volumeInUnits = candle.v ?? 0;
+        const closePriceInUsd = candle.c ?? price;
+        return volumeInUnits * closePriceInUsd;
+      })
+      .reduce((sum, volumeInUsd) => sum + volumeInUsd, 0);
+
+    const volumeUsd = totalVolumeInUsd / effectiveLookback;
 
     const analysis: Analysis = {
       currentPrice: price,
