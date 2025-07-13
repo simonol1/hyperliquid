@@ -7,7 +7,9 @@
     "HYPE-PERP",
     "LINK-PERP",
     "WIF-PERP",
-    "WLD-PERP"
+    "WLD-PERP",
+    "ENA-PERP",
+    "SEI-PERP"
   ],
   "loopIntervalMs": 60000,
   "timeframe": "1h",
@@ -24,6 +26,7 @@
   "initialTakeProfitPct": 2.0,
   "stopLossPct": 2,
   "maxCapitalRiskUsd": 50,
+  "minVolumeUsd": 50000,
   "riskMapping": {
     "minScore": 50,
     "goldenScore": 90,
@@ -33,5 +36,52 @@
     "maxLeverage": 10
   },
   "maxConcurrentTrades": 4,
-  "vaultAddress": "0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62"
+  "subaccountAddress": "0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62",
+  "coinConfig": {
+    "BTC-PERP": {
+      "timeframe": "1h",
+      "lookback": 40,
+      "minVolumeUsd": 100000
+    },
+    "ETH-PERP": {
+      "timeframe": "1h",
+      "lookback": 35,
+      "minVolumeUsd": 80000
+    },
+    "SOL-PERP": {
+      "timeframe": "1h",
+      "lookback": 30,
+      "minVolumeUsd": 60000
+    },
+    "LINK-PERP": {
+      "timeframe": "1h",
+      "lookback": 30,
+      "minVolumeUsd": 50000
+    },
+    "HYPE-PERP": {
+      "timeframe": "15m",
+      "lookback": 20,
+      "minVolumeUsd": 30000
+    },
+    "WIF-PERP": {
+      "timeframe": "15m",
+      "lookback": 20,
+      "minVolumeUsd": 25000
+    },
+    "WLD-PERP": {
+      "timeframe": "1h",
+      "lookback": 25,
+      "minVolumeUsd": 40000
+    },
+    "ENA-PERP": {
+      "timeframe": "15m",
+      "lookback": 25,
+      "minVolumeUsd": 30000
+    },
+    "SEI-PERP": {
+      "timeframe": "15m",
+      "lookback": 25,
+      "minVolumeUsd": 30000
+    }
+  }
 }

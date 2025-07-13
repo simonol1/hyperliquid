@@ -4,21 +4,6 @@ import cron from 'node-cron';
 import { stateManager } from './state-manager.js';
 
 /**
- * Daily summary
- */
-export const scheduleDailyReport = (
-    botName: string,
-    getSummary: () => string | Promise<string>
-) => {
-    cron.schedule('0 21 * * *', async () => {
-        const summary = await getSummary();
-        await sendTelegramMessage(`*${botName} Daily Report*\n\n${summary}`);
-    });
-
-    logInfo('Daily report scheduled: 21:00 server time');
-};
-
-/**
  * Heartbeat every N hours
  */
 export const scheduleHeartbeat = (

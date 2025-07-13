@@ -12,8 +12,9 @@ import { logInfo, logError } from '../shared-utils/logger.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runReversionBot } from './strategies/reversion.js';
 import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
+import { scheduleDailyReport, scheduleHourlyReport } from '../shared-utils/reporter.js';
 
-const vaultAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
+const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
 
 process.on('uncaughtException', (err) => {
     logError(`❌ Uncaught Exception: ${err}`);
@@ -28,7 +29,7 @@ const hyperliquid = new Hyperliquid({
     enableWs: true,
     privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
     walletAddress: process.env.HYPERLIQUID_AGENT_WALLET,
-    vaultAddress,
+    vaultAddress: subaccountAddress,
 });
 
 await hyperliquid.connect();
@@ -44,3 +45,5 @@ logInfo(`🚀 Starting Reversion Bot`);
 await runReversionBot(hyperliquid, reversionConfig, metaMap);
 
 scheduleHeartbeat(`Reversion Bot`, () => `Running`, 1);
+scheduleHourlyReport();
+scheduleDailyReport();

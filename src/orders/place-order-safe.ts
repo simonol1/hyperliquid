@@ -8,7 +8,7 @@ export const placeOrderSafe = async (
     qty: number,
     reduceOnly: boolean,
     tif: 'Ioc' | 'Gtc',
-    vaultAddress: string,
+    subaccountAddress: string,
     pxDecimals: number
 ) => {
     const tickSize = 1 / Math.pow(10, pxDecimals);
@@ -31,7 +31,7 @@ export const placeOrderSafe = async (
         limit_px: px.toFixed(pxDecimals),
         order_type: { limit: { tif: 'Ioc' } },
         reduce_only: reduceOnly,
-        vaultAddress,
+        vaultAddress: subaccountAddress,
     });
 
     const status = res.response?.data?.statuses?.[0];
@@ -59,7 +59,7 @@ export const placeOrderSafe = async (
         limit_px: retryPx.toFixed(pxDecimals),
         order_type: { limit: { tif: 'Ioc' } },
         reduce_only: reduceOnly,
-        vaultAddress,
+        vaultAddress: subaccountAddress,
     });
 
     const retryStatus = retryRes.response?.data?.statuses?.[0];
@@ -82,7 +82,7 @@ export const placeOrderSafe = async (
         limit_px: fallbackPxTidy.toFixed(pxDecimals),
         order_type: { limit: { tif: 'Gtc' } },
         reduce_only: reduceOnly,
-        vaultAddress,
+        vaultAddress: subaccountAddress,
     });
 
     const fallbackAccepted = fallbackRes.status === 'ok';

@@ -27,15 +27,15 @@ export const runTrendBot = async (
     try {
       logInfo(`[Trend Bot] 🔄 Loop #${loopCounter} start`);
 
-      const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(config.vaultAddress);
+      const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(config.subaccountAddress);
       const realPositions = perpState.assetPositions.filter(
         p => Math.abs(parseFloat(p.position.szi)) > 0
       );
 
-      const balanceOk = await hasMinimumBalance(hyperliquid, config.vaultAddress);
+      const balanceOk = await hasMinimumBalance(hyperliquid, config.subaccountAddress);
 
       if (!balanceOk) {
-        logInfo(`[Trend Bot] ⚠️ Balance too low for new trades. Running exits only.`);
+        logInfo(`[Trend Bot] ⚠️ Balance too low for new trades. Will only run exits.`);
       } else {
         const candidates: { coin: string; signal: BaseSignal; analysis: Analysis }[] = [];
 
@@ -48,6 +48,13 @@ export const runTrendBot = async (
 
         for (const { coin, analysis } of analyses) {
           if (!analysis) continue;
+
+          const volume = analysis.volumeUsd ?? 0;
+          const minVolume = config.minVolumeUsd ?? 0;
+          if (volume < minVolume) {
+            logInfo(`[Trend Bot] ⛔ Skipping ${coin}, volume ${volume.toFixed(0)} < min ${minVolume}`);
+            continue;
+          }
 
           const signal = evaluateTrendSignal(coin, analysis, config);
           if (signal.type === 'HOLD') continue;
@@ -91,7 +98,6 @@ export const runTrendBot = async (
         timestamp: Date.now(),
       });
 
-      // ✅ Exits
       for (const position of realPositions) {
         const coin = position.position.coin;
         const analysis = await analyseData(hyperliquid, coin, config);
@@ -112,7 +118,7 @@ export const runTrendBot = async (
 
         const exitIntent = evaluateExit(virtualPosition, analysis, config);
         if (exitIntent) {
-          await executeExit(hyperliquid, config.vaultAddress, exitIntent, metaMap.get(coin));
+          await executeExit(hyperliquid, config.subaccountAddress, exitIntent, metaMap.get(coin));
           stateManager.clearHighWatermark(coin);
           stateManager.setCooldown(coin, 5 * 60 * 1000);
         }

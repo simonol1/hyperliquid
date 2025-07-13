@@ -7,11 +7,11 @@ import type { Hyperliquid } from '../sdk/index';
 
 export const hasMinimumBalance = async (
     hyperliquid: Hyperliquid,
-    vaultAddress: string,
+    subaccountAddress: string,
     minUsd = 10
 ): Promise<boolean> => {
 
-    const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(vaultAddress);
+    const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
     const availableUsd = Number(perpState?.withdrawable) || 0;
 
     return availableUsd >= minUsd;

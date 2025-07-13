@@ -11,11 +11,13 @@ import { Hyperliquid } from '../sdk/index.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { logInfo, logError, logDebug } from '../shared-utils/logger.js';
 import { isBotStatus, isTradeSignal, type TradeSignal } from '../shared-utils/types.js';
+import { scheduleHourlyReport, scheduleDailyReport } from '../shared-utils/reporter.js';
+import { scheduleDailyReset, scheduleHeartbeat } from '../shared-utils/scheduler.js';
 
 type BotKey = 'trend' | 'breakout' | 'reversion';
 
-const vaultAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
-if (!vaultAddress) throw new Error(`[Orchestrator] ❌ sub account wallet address missing!`);
+const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
+if (!subaccountAddress) throw new Error(`[Orchestrator] ❌ sub account wallet address missing!`);
 
 // ✅ Setup Hyperliquid
 
@@ -23,7 +25,7 @@ const hyperliquid = new Hyperliquid({
     enableWs: true,
     privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY,
     walletAddress: process.env.HYPERLIQUID_AGENT_WALLET,
-    vaultAddress,
+    vaultAddress: subaccountAddress,
 });
 
 await hyperliquid.connect();
@@ -45,7 +47,12 @@ const BOT_CONFIG: Record<BotKey, any> = {
 
 const BOTS_EXPECTED: BotKey[] = ['trend', 'breakout', 'reversion'];
 
-logInfo(`[Orchestrator] ✅ Ready with vault ${vaultAddress}`);
+logInfo(`[Orchestrator] ✅ Ready with vault ${subaccountAddress}`);
+
+scheduleHourlyReport();
+scheduleDailyReport();
+scheduleDailyReset();
+scheduleHeartbeat('Orchestrator', () => 'Running fine', 1); // optional
 
 while (true) {
     logDebug(`[Orchestrator] Polling for signals...`);

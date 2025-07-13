@@ -7,32 +7,45 @@ export interface RiskMapping {
   maxLeverage: number;          // max leverage to apply
 }
 
-export interface BotConfig {
-  strategy: string;             // e.g. "trend", "breakout", "reversion"
-  coins: string[];
-  loopIntervalMs: number;       // main loop interval
-  timeframe: string;            // e.g. "1h"
+export type StrategyType = 'trend' | 'breakout' | 'reversion';
 
-  emaFastPeriod?: number;        // fast EMA, e.g. 10, 20
-  emaMediumPeriod?: number;      // medium EMA, e.g. 50
-  emaSlowPeriod: number;        // slow EMA, e.g. 200
+export interface CoinConfigOverrides {
+  timeframe?: string;
+  minVolumeUsd?: number;
+  lookback?: number;
+  // Add others as needed later (e.g., emaSlowPeriod, thresholds)
+}
+
+export interface BotConfig {
+  strategy: StrategyType;
+  coins: string[];
+  loopIntervalMs: number;
+  timeframe: string;
+
+  emaFastPeriod?: number;
+  emaMediumPeriod?: number;
+  emaSlowPeriod: number;
 
   rsiPeriod: number;
   macdFastPeriod: number;
   macdSlowPeriod: number;
   macdSignalPeriod: number;
-  bollingerPeriod?: number;     // optional override for BB
+  bollingerPeriod?: number;
 
   rsiOverboughtThreshold: number;
   rsiOversoldThreshold: number;
 
-  trailingStopPct: number;      // trailing stop % drop
-  initialTakeProfitPct: number; // TP % gain
-  stopLossPct: number
+  trailingStopPct: number;
+  initialTakeProfitPct: number;
+  stopLossPct: number;
 
-  maxConcurrentTrades: number
-  maxCapitalRiskUsd: number;    // hard USD max per trade
-  vaultAddress: string;        // sub-account wallet for this bot
+  maxConcurrentTrades: number;
+  maxCapitalRiskUsd: number;
+  subaccountAddress: string;
 
-  riskMapping: RiskMapping;     // dynamic risk map
+  riskMapping: RiskMapping;
+  minVolumeUsd: number;
+  coinConfig?: {
+    [coin: string]: CoinConfigOverrides
+  };
 }

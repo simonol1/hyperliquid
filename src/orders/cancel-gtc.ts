@@ -4,11 +4,11 @@ import type { Hyperliquid } from '../sdk/index.js';
 export const cancelStaleGtc = async (
     hyperliquid: Hyperliquid,
     coin: string,
-    vaultAddress: string
+    subaccountAddress: string
 ) => {
     logInfo(`[Canceller] 🔎 Checking stale GTC for ${coin}`);
 
-    const openOrders = await hyperliquid.info.getUserOpenOrders(vaultAddress);
+    const openOrders = await hyperliquid.info.getUserOpenOrders(subaccountAddress);
     const open = openOrders.find((o) => o.coin === coin);
 
     if (!open) {

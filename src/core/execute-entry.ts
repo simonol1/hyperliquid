@@ -21,7 +21,7 @@ export const executeEntry = async (
 
     const { canTrade, qty: safeQty } = await checkRiskGuards(
         hyperliquid,
-        config.vaultAddress,
+        config.subaccountAddress,
         rawQty,
         signal.entryPrice,
         coinMeta
@@ -37,7 +37,7 @@ export const executeEntry = async (
         tidyQty,
         false,
         'Ioc',
-        config.vaultAddress,
+        config.subaccountAddress,
         pxDecimals
     );
 
@@ -50,7 +50,7 @@ export const executeEntry = async (
             tidyQty,
             signal.entryPrice,
             config.stopLossPct,
-            config.vaultAddress,
+            config.subaccountAddress,
             pxDecimals
         );
         await placeTakeProfit(
@@ -60,7 +60,7 @@ export const executeEntry = async (
             tidyQty,
             signal.entryPrice,
             config.initialTakeProfitPct,
-            config.vaultAddress,
+            config.subaccountAddress,
             pxDecimals
         );
     }

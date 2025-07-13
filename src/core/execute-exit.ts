@@ -14,7 +14,7 @@ export interface ExitIntent {
 
 export const executeExit = async (
     hyperliquid: Hyperliquid,
-    vaultAddress: string,
+    subaccountAddress: string,
     exitIntent: ExitIntent,
     coinMeta?: CoinMeta
 ) => {
@@ -26,7 +26,7 @@ export const executeExit = async (
     const { coin, pxDecimals, szDecimals } = coinMeta;
     logInfo(`[ExecuteExit] Starting for ${coin} → ${exitIntent.reason}`);
 
-    const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(vaultAddress);
+    const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
     const realPosition = perpState.assetPositions.find(
         (p) => p.position.coin === coin && Math.abs(parseFloat(p.position.szi)) > 0
     );
@@ -43,7 +43,7 @@ export const executeExit = async (
 
     const { canTrade, qty: safeQty } = await checkRiskGuards(
         hyperliquid,
-        vaultAddress,
+        subaccountAddress,
         rawQty,
         exitIntent.price,
         coinMeta
@@ -69,7 +69,7 @@ export const executeExit = async (
         tidyQty,
         true,
         'Ioc',
-        vaultAddress,
+        subaccountAddress,
         pxDecimals
     );
 

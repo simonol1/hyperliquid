@@ -8,7 +8,7 @@ export const placeTakeProfit = async (
     qty: number,
     entryPrice: number,
     takeProfitPct: number,
-    vaultAddress: string,
+    subaccountAddress: string,
     pxDecimals: number
 ) => {
     const targetPx = isLong
@@ -25,7 +25,7 @@ export const placeTakeProfit = async (
             trigger: { triggerPx: tidyPx, isMarket: true, tpsl: 'tp' },
         },
         reduce_only: true,
-        vaultAddress,
+        vaultAddress: subaccountAddress,
         grouping: 'positionTpsl',
     });
 

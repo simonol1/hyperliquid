@@ -1,7 +1,7 @@
-import { logInfo, logDebug } from '../shared-utils/logger.js';
-import type { Analysis } from '../shared-utils/analyse-asset.js';
-import type { BaseSignal } from '../shared-utils/types.js';
-import type { BotConfig } from '../bots/config/bot-config.js';
+import { BotConfig } from "../bots/config/bot-config";
+import { Analysis } from "../shared-utils/analyse-asset";
+import { logDebug, logInfo } from "../shared-utils/logger";
+import { BaseSignal } from "../shared-utils/types";
 
 export const evaluateBreakoutSignal = (
     asset: string,
@@ -12,7 +12,6 @@ export const evaluateBreakoutSignal = (
 
     const upper = bollingerBands.upper;
     const lower = bollingerBands.lower;
-
     const breakoutBufferPct = 0.005;
 
     const breaksUpper = currentPrice >= upper * (1 + breakoutBufferPct);
@@ -35,29 +34,30 @@ export const evaluateBreakoutSignal = (
         }
     }
 
-    let bbFactor = 0;
+    // --- New weighted factors ---
+    let breakoutFactor = 0;
     let rsiFactor = 0;
     let macdFactor = 0;
 
     if (type === 'BUY') {
-        const bbBreakPct = ((currentPrice - upper) / upper) * 100;
-        bbFactor = Math.min(Math.max(bbBreakPct, 0) / 2, 40);
+        const breakoutPct = ((currentPrice - upper) / upper) * 100;
+        breakoutFactor = Math.min(Math.max(breakoutPct * 4, 0), 60); // ⚡ heavier weight
 
         const rsiOver = Math.max(rsi - config.rsiOverboughtThreshold, 0);
-        rsiFactor = Math.min((rsiOver / 10) * 30, 30);
+        rsiFactor = Math.min((rsiOver / 10) * 20, 20); // 🟡 lower weight
 
-        macdFactor = Math.min(Math.abs(macd), 5) / 5 * 30;
+        macdFactor = Math.min(Math.abs(macd), 5) / 5 * 20;
     } else if (type === 'SELL') {
-        const bbBreakPct = ((lower - currentPrice) / lower) * 100;
-        bbFactor = Math.min(Math.max(bbBreakPct, 0) / 2, 40);
+        const breakoutPct = ((lower - currentPrice) / lower) * 100;
+        breakoutFactor = Math.min(Math.max(breakoutPct * 4, 0), 60); // ⚡ heavier weight
 
         const rsiUnder = Math.max(config.rsiOversoldThreshold - rsi, 0);
-        rsiFactor = Math.min((rsiUnder / 10) * 30, 30);
+        rsiFactor = Math.min((rsiUnder / 10) * 20, 20); // 🟡 lower weight
 
-        macdFactor = Math.min(Math.abs(macd), 5) / 5 * 30;
+        macdFactor = Math.min(Math.abs(macd), 5) / 5 * 20;
     }
 
-    const strength = Math.min(bbFactor + rsiFactor + macdFactor, 100);
+    const strength = Math.min(breakoutFactor + rsiFactor + macdFactor, 100);
 
     const output = `[Signal] ${asset} | Breakout | Type=${type} | Price=${currentPrice.toFixed(
         2
