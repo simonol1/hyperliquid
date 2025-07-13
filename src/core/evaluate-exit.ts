@@ -7,8 +7,9 @@ export interface Position {
     qty: number;
     entryPrice: number;
     highestPrice: number;
-    isShort: boolean;
+    isLong: boolean;
     takeProfitTarget?: number;
+    trailingStopTarget?: number;
 }
 
 export const evaluateExit = (
@@ -16,16 +17,24 @@ export const evaluateExit = (
     analysis: Analysis,
     config: BotConfig
 ): ExitIntent | null => {
-    const shouldExit =
-        checkTrailingStop(position, analysis, config) ||
-        checkTakeProfit(position, analysis, config);
+    if (checkTrailingStop(position, analysis, config)) {
+        return {
+            quantity: position.qty,
+            price: analysis.currentPrice,
+            type: 'EXIT',
+            reason: `TrailingStop (${config.trailingStopPct}%)`,
+        };
+    }
 
-    if (!shouldExit) return null;
+    if (checkTakeProfit(position, analysis)) {
+        return {
+            quantity: position.qty,
+            price: analysis.currentPrice,
+            type: 'EXIT',
+            reason: `TakeProfit hit`,
+        };
+    }
 
-    return {
-        quantity: position.qty,
-        price: analysis.currentPrice,
-        type: 'EXIT',
-        reason: 'TrailingStopOrTP',
-    };
+    return null;
 };
+

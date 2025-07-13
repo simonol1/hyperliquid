@@ -10,6 +10,7 @@ import { BaseSignal } from '../../shared-utils/types';
 import { CoinMeta } from '../../shared-utils/coin-meta';
 import { pushSignal } from '../../shared-utils/push-signal';
 import { hasMinimumBalance } from '../../shared-utils/check-balance';
+import { buildVirtualPositionFromLive } from '../../shared-utils/virtual-position';
 
 export const runReversionBot = async (
   hyperliquid: Hyperliquid,
@@ -88,6 +89,7 @@ export const runReversionBot = async (
             bot: config.strategy,
             coin: candidate.coin,
             side: candidate.signal.type === 'BUY' ? 'LONG' : 'SHORT',
+            atr: candidate.analysis.atr,
             entryPrice: candidate.analysis.currentPrice,
             strength: candidate.signal.strength,
             timestamp: Date.now(),
@@ -103,22 +105,14 @@ export const runReversionBot = async (
 
       for (const position of realPositions) {
         const coin = position.position.coin;
+        const szi = parseFloat(position.position.szi);
+        const entryPx = parseFloat(position.position.entryPx);
+
+        const virtualPosition = await buildVirtualPositionFromLive(coin, szi, entryPx);
+        if (!virtualPosition) continue;
 
         const analysis = await analyseData(hyperliquid, coin, config);
         if (!analysis) continue;
-
-        const szi = parseFloat(position.position.szi);
-        const entryPx = parseFloat(position.position.entryPx);
-        const isShort = szi < 0;
-
-        stateManager.setHighWatermark(coin, analysis.currentPrice, isShort);
-
-        const virtualPosition = {
-          qty: Math.abs(szi),
-          entryPrice: entryPx,
-          highestPrice: stateManager.getHighWatermark(coin) ?? entryPx,
-          isShort,
-        };
 
         const exitIntent = evaluateExit(virtualPosition, analysis, config);
         if (exitIntent) {

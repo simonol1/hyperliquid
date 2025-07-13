@@ -17,6 +17,8 @@ export interface TradeRecord {
     exitPrice?: number;
     pnl?: number;
     rawSignal?: any; // optional full signal payload for debugging
+    takeProfitTarget?: number;
+    trailingStopTarget?: number;
 }
 
 export const TradeTracker = {
@@ -48,7 +50,7 @@ export const TradeTracker = {
         return await redis.keys('trade:*');
     },
 
-    async markConfirmed(id: string, qty: number, leverage: number) {
+    async markConfirmed(id: string, qty: number, leverage: number, extras?: Partial<TradeRecord>) {
         const raw = await redis.get(`trade:${id}`);
         if (!raw) throw new Error(`TradeTracker: No trade with id=${id}`);
         const trade = JSON.parse(raw);
@@ -56,6 +58,11 @@ export const TradeTracker = {
         trade.qty = qty;
         trade.leverage = leverage;
         trade.openedAt = Date.now();
+
+        if (extras) {
+            Object.assign(trade, extras);
+        }
+
         await redis.set(`trade:${id}`, JSON.stringify(trade));
     },
 

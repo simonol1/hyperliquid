@@ -29,10 +29,12 @@ export const calculatePositionSize = (
     const capitalRiskPct = Math.min(risk.maxCapitalRiskPct, Math.max(risk.minCapitalRiskPct, riskPct));
     const capitalRiskUsd = capitalRiskPct * maxCapitalRiskUsd;
 
-    const leverage = Math.min(
+    const rawLeverage = Math.min(
         risk.maxLeverage,
         Math.max(risk.minLeverage, (score / risk.goldenScore) * risk.maxLeverage)
     );
+
+    const leverage = Math.round(rawLeverage)
 
     return {
         capitalRiskUsd,

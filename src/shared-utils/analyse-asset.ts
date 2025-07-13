@@ -25,6 +25,7 @@ export interface Analysis {
   volumeUsd: number;
   highEffectiveLevel?: number;
   lowEffectiveLevel?: number;
+  atr: number // average true range
 }
 
 export const analyseData = async (
@@ -100,6 +101,9 @@ export const analyseData = async (
 
     const volumeUsd = totalVolumeInUsd / effectiveLookback;
 
+    const atrPeriod = Math.min(40, Math.max(10, Math.floor(effectiveLookback / 3)));
+    const atr = calculateATR(candles, atrPeriod);
+
     const analysis: Analysis = {
       currentPrice: price,
       closes,
@@ -112,7 +116,8 @@ export const analyseData = async (
       bollingerBands,
       highEffectiveLevel,
       lowEffectiveLevel,
-      volumeUsd
+      volumeUsd,
+      atr
     };
 
     logAnalysis(asset, analysis);
@@ -122,4 +127,18 @@ export const analyseData = async (
     logError(`[AnalyseData] ❌ ${asset} → ${err.message}`);
     return null;
   }
+};
+
+export const calculateATR = (candles: Candle[], period: number = 14): number => {
+  const trs = candles.slice(1).map((c, i) => {
+    const prevClose = candles[i].c;
+    const high = c.h, low = c.l, close = c.c;
+    return Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+  });
+  const atr = trs.slice(-period).reduce((a, b) => a + b, 0) / period;
+  return atr;
 };

@@ -36,7 +36,6 @@ export interface BotConfig {
   rsiOversoldThreshold: number;
 
   trailingStopPct: number;
-  initialTakeProfitPct: number;
   stopLossPct: number;
 
   maxConcurrentTrades: number;

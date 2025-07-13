@@ -8,6 +8,7 @@ export interface TradeSignal {
     bot: string;
     coin: string;
     side: string;
+    atr: number;
     entryPrice: number;
     strength: number;
     timestamp: number;
