@@ -17,6 +17,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
+      - MAX_GLOBAL_CONCURRENT_TRADES=6
     command: ["node", "dist/orchestrator.mjs"]
     depends_on:
       - redis

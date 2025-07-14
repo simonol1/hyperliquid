@@ -13,6 +13,8 @@ export interface CoinConfigOverrides {
   timeframe?: string;
   minVolumeUsd?: number;
   lookback?: number;
+  reversionDistanceThreshold?: number;
+  reversionMaxDistance?: number;
   // Add others as needed later (e.g., emaSlowPeriod, thresholds)
 }
 
@@ -38,7 +40,6 @@ export interface BotConfig {
   trailingStopPct: number;
   stopLossPct: number;
 
-  maxConcurrentTrades: number;
   subaccountAddress: string;
 
   riskMapping: RiskMapping;

@@ -34,7 +34,6 @@
     "minLeverage": 3,
     "maxLeverage": 10
   },
-  "maxConcurrentTrades": 4,
   "subaccountAddress": "0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62",
   "coinConfig": {
     "BTC-PERP": {

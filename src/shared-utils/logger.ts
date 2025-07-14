@@ -3,8 +3,7 @@ import path from 'path';
 import pino from 'pino';
 import type { Analysis } from './analyse-asset';
 
-const BOT_NAME = process.env.BOT_NAME || "UNKNOWN";
-const LOG_PREFIX = `[BOT:${BOT_NAME}]`;
+// const LOG_PREFIX = `[${process.env.BOT_NAME}]`;
 
 // === File setup ===
 const today = new Date().toISOString().split('T')[0];
@@ -30,10 +29,10 @@ export const logger = pino(
   ])
 );
 
-export const logInfo = (msg: string) => logger.info(`${LOG_PREFIX} ${msg}`);
-export const logDebug = (msg: string) => logger.debug(`${LOG_PREFIX} ${msg}`);
-export const logWarn = (msg: string | unknown) => logger.warn(`${LOG_PREFIX} ⚠️ ${msg}`);
-export const logError = (msg: string | unknown) => logger.error(`${LOG_PREFIX} ❌ ${msg}`);
+export const logInfo = (msg: string) => logger.info(`${msg}`);
+export const logDebug = (msg: string) => logger.debug(`${msg}`);
+export const logWarn = (msg: string | unknown) => logger.warn(` ⚠️ ${msg}`);
+export const logError = (msg: string | unknown) => logger.error(`❌ ${msg}`);
 
 export const logTrade = ({
   asset,
@@ -77,7 +76,7 @@ export const logAnalysis = (asset: string, a: Analysis) => {
   const emaOutput = emaParts.length ? ` | EMAs: ${emaParts.join(', ')}` : '';
 
   logger.debug(
-    `${LOG_PREFIX} [AnalyseData] ${asset} | Price: ${a.currentPrice.toFixed(
+    `[AnalyseData] ${asset} | Price: ${a.currentPrice.toFixed(
       2
     )}${emaOutput} | RSI: ${a.rsi.toFixed(1)} | MACD: ${a.macd.toFixed(
       2

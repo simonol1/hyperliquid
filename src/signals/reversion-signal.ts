@@ -10,51 +10,38 @@ export const evaluateReversionSignal = (
 ): BaseSignal => {
     const { currentPrice, slowEma, rsi, macd } = analysis;
 
-    let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    // Allow per-coin distance thresholds
+    const overrides = config.coinConfig?.[asset];
+    const threshold = overrides?.reversionDistanceThreshold ?? 0.5;
+    const maxDistance = overrides?.reversionMaxDistance ?? 5;
 
     const distanceFromMean = ((currentPrice - slowEma) / slowEma) * 100;
 
-    if (distanceFromMean > 0.5) {
-        type = 'SELL';
-    } else if (distanceFromMean < -0.5) {
-        type = 'BUY';
-    }
+    let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    if (distanceFromMean > threshold) type = 'SELL';
+    else if (distanceFromMean < -threshold) type = 'BUY';
 
     let strength = 0;
-
     if (type !== 'HOLD') {
-        const absDistance = Math.abs(distanceFromMean);
-        const maxDistance = 5;
-        const distanceFactor = Math.min((absDistance / maxDistance) * 40, 40);
+        const distanceFactor = Math.min(Math.abs(distanceFromMean) / maxDistance * 40, 40);
 
         let rsiFactor = 0;
         if (type === 'SELL' && rsi > config.rsiOverboughtThreshold) {
-            const rsiOver = Math.min(rsi - config.rsiOverboughtThreshold, 20);
-            rsiFactor = (rsiOver / 20) * 40;
+            rsiFactor = Math.min((rsi - config.rsiOverboughtThreshold) / 20 * 40, 40);
         } else if (type === 'BUY' && rsi < config.rsiOversoldThreshold) {
-            const rsiUnder = Math.min(config.rsiOversoldThreshold - rsi, 20);
-            rsiFactor = (rsiUnder / 20) * 40;
+            rsiFactor = Math.min((config.rsiOversoldThreshold - rsi) / 20 * 40, 40);
         }
 
-        const macdStrength = Math.min(Math.abs(macd), 5);
-        const macdFactor = (macdStrength / 5) * 20;
-
+        const macdFactor = Math.min(Math.abs(macd), 5) / 5 * 20;
         strength = distanceFactor + rsiFactor + macdFactor;
-
         if (strength > 100) strength = 100;
     }
 
-    const output = `[Signal] ${asset} | Reversion | Type=${type} | Price=${currentPrice.toFixed(
+    const output = `[Signal] ${asset} | Reversion | Type=${type} | Distance=${distanceFromMean.toFixed(
         2
-    )} | SlowEMA=${slowEma.toFixed(2)} | Distance=${distanceFromMean.toFixed(
-        2
-    )}% | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`;
+    )}% (T=${threshold}) | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`;
 
-    if (type === 'HOLD') {
-        logDebug(output);
-    } else {
-        logInfo(output);
-    }
+    type === 'HOLD' ? logDebug(output) : logInfo(output);
 
     return { type, strength };
 };
