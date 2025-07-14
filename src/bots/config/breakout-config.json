@@ -4,18 +4,15 @@
     "BTC-PERP",
     "ETH-PERP",
     "SOL-PERP",
-    "WIF-PERP",
-    "WLD-PERP",
-    "LINK-PERP",
     "ARB-PERP",
-    "SUI-PERP",
-    "HYPE-PERP",
-    "SEI-PERP",
-    "ENA-PERP",
+    "LINK-PERP",
     "XRP-PERP",
-    "SPX-PERP",
-    "kBONK-PERP",
-    "kPEPE-PERP"
+    "SUI-PERP",
+    "WLD-PERP",
+    "DOGE-PERP",
+    "APT-PERP",
+    "AVAX-PERP",
+    "OP-PERP"
   ],
   "loopIntervalMs": 60000,
   "timeframe": "1h",
@@ -31,52 +28,76 @@
   "minVolumeUsd": 50000,
   "trailingStopPct": 0.5,
   "stopLossPct": 3,
-  "maxCapitalRiskUsd": 50,
   "riskMapping": {
     "minScore": 50,
     "goldenScore": 70,
     "minCapitalRiskPct": 0.02,
-    "maxCapitalRiskPct": 0.10,
+    "maxCapitalRiskPct": 0.1,
     "minLeverage": 5,
     "maxLeverage": 25
   },
   "maxConcurrentTrades": 10,
   "subaccountAddress": "0xeb3928e80cda9a3b8176e1efcf23489bbc8e1b62",
   "coinConfig": {
-    "WIF-PERP": {
-      "timeframe": "15m",
-      "lookback": 30,
-      "minVolumeUsd": 30000
-    },
-    "HYPE-PERP": {
-      "timeframe": "15m",
-      "lookback": 30,
-      "minVolumeUsd": 30000
-    },
-    "SUI-PERP": {
-      "timeframe": "15m",
-      "lookback": 40,
-      "minVolumeUsd": 40000
-    },
-    "SPX-USD": {
+    "BTC-PERP": {
       "timeframe": "1h",
-      "lookback": 100,
+      "lookback": 50,
+      "minVolumeUsd": 120000
+    },
+    "ETH-PERP": {
+      "timeframe": "1h",
+      "lookback": 45,
       "minVolumeUsd": 100000
-    },
-    "ENA-PERP": {
-      "timeframe": "15m",
-      "lookback": 40,
-      "minVolumeUsd": 35000
-    },
-    "WLD-PERP": {
-      "timeframe": "30m",
-      "lookback": 60,
-      "minVolumeUsd": 50000
     },
     "SOL-PERP": {
       "timeframe": "1h",
+      "lookback": 40,
+      "minVolumeUsd": 80000
+    },
+    "ARB-PERP": {
+      "timeframe": "30m",
+      "lookback": 50,
+      "minVolumeUsd": 60000
+    },
+    "LINK-PERP": {
+      "timeframe": "30m",
+      "lookback": 40,
+      "minVolumeUsd": 50000
+    },
+    "XRP-PERP": {
+      "timeframe": "1h",
+      "lookback": 45,
+      "minVolumeUsd": 60000
+    },
+    "SUI-PERP": {
+      "timeframe": "30m",
       "lookback": 50,
       "minVolumeUsd": 50000
+    },
+    "WLD-PERP": {
+      "timeframe": "30m",
+      "lookback": 50,
+      "minVolumeUsd": 50000
+    },
+    "DOGE-PERP": {
+      "timeframe": "30m",
+      "lookback": 40,
+      "minVolumeUsd": 60000
+    },
+    "APT-PERP": {
+      "timeframe": "15m",
+      "lookback": 30,
+      "minVolumeUsd": 40000
+    },
+    "AVAX-PERP": {
+      "timeframe": "30m",
+      "lookback": 40,
+      "minVolumeUsd": 50000
+    },
+    "OP-PERP": {
+      "timeframe": "15m",
+      "lookback": 30,
+      "minVolumeUsd": 40000
     }
   }
 }

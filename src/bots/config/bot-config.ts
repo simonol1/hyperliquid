@@ -39,7 +39,6 @@ export interface BotConfig {
   stopLossPct: number;
 
   maxConcurrentTrades: number;
-  maxCapitalRiskUsd: number;
   subaccountAddress: string;
 
   riskMapping: RiskMapping;

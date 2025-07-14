@@ -4,13 +4,12 @@
     "BTC-PERP",
     "ETH-PERP",
     "SOL-PERP",
-    "HYPE-PERP",
     "LINK-PERP",
-    "WIF-PERP",
-    "WLD-PERP",
-    "ENA-PERP",
-    "SEI-PERP",
-    "XRP-PERP"
+    "DOGE-PERP",
+    "APT-PERP",
+    "AVAX-PERP",
+    "OP-PERP",
+    "ATOM-PERP"
   ],
   "loopIntervalMs": 60000,
   "timeframe": "1h",
@@ -26,10 +25,9 @@
   "trailingStopPct": 0.5,
   "initialTakeProfitPct": 2.0,
   "stopLossPct": 2,
-  "maxCapitalRiskUsd": 50,
   "minVolumeUsd": 50000,
   "riskMapping": {
-    "minScore": 50,
+    "minScore": 60,
     "goldenScore": 90,
     "minCapitalRiskPct": 0.02,
     "maxCapitalRiskPct": 0.10,
@@ -42,47 +40,47 @@
     "BTC-PERP": {
       "timeframe": "1h",
       "lookback": 40,
-      "minVolumeUsd": 100000
+      "minVolumeUsd": 120000
     },
     "ETH-PERP": {
+      "timeframe": "1h",
+      "lookback": 40,
+      "minVolumeUsd": 100000
+    },
+    "SOL-PERP": {
       "timeframe": "1h",
       "lookback": 35,
       "minVolumeUsd": 80000
     },
-    "SOL-PERP": {
-      "timeframe": "1h",
-      "lookback": 30,
-      "minVolumeUsd": 60000
-    },
     "LINK-PERP": {
       "timeframe": "1h",
-      "lookback": 30,
+      "lookback": 35,
+      "minVolumeUsd": 60000
+    },
+    "DOGE-PERP": {
+      "timeframe": "30m",
+      "lookback": 35,
+      "minVolumeUsd": 60000
+    },
+    "APT-PERP": {
+      "timeframe": "30m",
+      "lookback": 35,
       "minVolumeUsd": 50000
     },
-    "HYPE-PERP": {
-      "timeframe": "15m",
-      "lookback": 20,
-      "minVolumeUsd": 30000
+    "AVAX-PERP": {
+      "timeframe": "30m",
+      "lookback": 35,
+      "minVolumeUsd": 50000
     },
-    "WIF-PERP": {
-      "timeframe": "15m",
-      "lookback": 20,
-      "minVolumeUsd": 25000
-    },
-    "WLD-PERP": {
-      "timeframe": "1h",
-      "lookback": 25,
+    "OP-PERP": {
+      "timeframe": "30m",
+      "lookback": 30,
       "minVolumeUsd": 40000
     },
-    "ENA-PERP": {
-      "timeframe": "15m",
-      "lookback": 25,
-      "minVolumeUsd": 30000
-    },
-    "SEI-PERP": {
-      "timeframe": "15m",
-      "lookback": 25,
-      "minVolumeUsd": 30000
+    "ATOM-PERP": {
+      "timeframe": "30m",
+      "lookback": 30,
+      "minVolumeUsd": 40000
     }
   }
 }

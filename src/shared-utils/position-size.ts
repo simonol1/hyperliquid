@@ -15,26 +15,25 @@ export interface PositionSizingResult {
 
 export const calculatePositionSize = (
     signalStrength: number,
-    maxCapitalRiskUsd: number,
+    walletBalance: number,
     risk: RiskMapping
 ): PositionSizingResult => {
-    const score = Math.max(0, Math.min(100, signalStrength));
+
+    const score = Math.min(100, Math.max(0, signalStrength));
     const scoreRange = Math.max(1, risk.goldenScore - risk.minScore);
     const effectiveScore = Math.max(0, score - risk.minScore);
 
-    const riskPct =
-        risk.minCapitalRiskPct +
+    const capitalRiskPct = risk.minCapitalRiskPct +
         (effectiveScore / scoreRange) * (risk.maxCapitalRiskPct - risk.minCapitalRiskPct);
 
-    const capitalRiskPct = Math.min(risk.maxCapitalRiskPct, Math.max(risk.minCapitalRiskPct, riskPct));
-    const capitalRiskUsd = capitalRiskPct * maxCapitalRiskUsd;
+    const capitalRiskUsd = capitalRiskPct * walletBalance;
 
-    const rawLeverage = Math.min(
-        risk.maxLeverage,
-        Math.max(risk.minLeverage, (score / risk.goldenScore) * risk.maxLeverage)
+    const leverage = Math.round(
+        Math.max(
+            risk.minLeverage,
+            Math.min(risk.maxLeverage, (score / risk.goldenScore) * risk.maxLeverage)
+        )
     );
-
-    const leverage = Math.round(rawLeverage)
 
     return {
         capitalRiskUsd,
@@ -42,3 +41,4 @@ export const calculatePositionSize = (
         capitalRiskPct,
     };
 };
+
