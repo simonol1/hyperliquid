@@ -1,15 +1,14 @@
 # ========================
 # 👉 Build stage
 # ========================
-FROM node:18.20-slim AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN apt-get update && apt-get install -y ca-certificates
-
-RUN npm ci
+RUN apk add --no-cache bash ca-certificates \
+    && npm ci
 
 COPY . .
 
@@ -21,15 +20,16 @@ COPY ./src/bots/config ./dist/config
 # ========================
 # 👉 Runtime stage
 # ========================
-FROM node:18.20-slim AS runner
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
 COPY package*.json ./
 COPY --from=builder /app/dist ./dist
 
-RUN npm ci --omit=dev
+RUN apk add --no-cache bash ca-certificates \
+    && npm ci --omit=dev
 
 ENV NODE_ENV=production
 
-CMD ["node", "dist/trend.mjs"]  # overridden in compose
+CMD ["node", "dist/trend.mjs"] # overridden in compose

@@ -32,7 +32,7 @@ const hyperliquid = new Hyperliquid({
 });
 
 await hyperliquid.connect();
-logInfo(`✅ Connected to Hyperliquid (Breakout Bot)`);
+logInfo(`✅ [Breakout Bot] Connected to Hyperliquid`);
 
 const metaMap = await buildMetaMap(hyperliquid);
 

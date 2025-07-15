@@ -32,7 +32,7 @@ const hyperliquid = new Hyperliquid({
 });
 
 await hyperliquid.connect();
-logInfo(`✅ Connected to Hyperliquid (Reversion Bot)`);
+logInfo(`✅ [Reversion Bot] Connected to Hyperliquid`);
 
 const metaMap = await buildMetaMap(hyperliquid);
 
