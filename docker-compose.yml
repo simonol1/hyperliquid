@@ -1,3 +1,4 @@
+version: '3.9'
 
 services:
   redis:
@@ -5,10 +6,12 @@ services:
     container_name: redis
     ports:
       - "127.0.0.1:6379:6379"
-    command: ["redis-server", "--bind", "127.0.0.1"]
+    command: ["redis-server", "--bind", "127.0.0.1", "--protected-mode", "yes"]
     volumes:
       - redis_data:/data
     restart: always
+    networks:
+      - backend
 
   orchestrator:
     build:
@@ -25,6 +28,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs/orchestrator:/app/logs
+    networks:
+      - backend
 
   trend_bot:
     build:
@@ -41,6 +46,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs/trend:/app/logs
+    networks:
+      - backend
 
   breakout_bot:
     build:
@@ -57,6 +64,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs/breakout:/app/logs
+    networks:
+      - backend
 
   reversion_bot:
     build:
@@ -73,6 +82,12 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs/reversion:/app/logs
+    networks:
+      - backend
 
 volumes:
   redis_data:
+
+networks:
+  backend:
+    driver: bridge
