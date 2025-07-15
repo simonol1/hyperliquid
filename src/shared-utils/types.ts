@@ -16,7 +16,7 @@ export interface TradeSignal {
 
 export interface BotStatusMessage {
     bot: string;
-    status: 'BOT_DONE';
+    status: 'BOT_COMPLETED';
     timestamp: number;
 }
 

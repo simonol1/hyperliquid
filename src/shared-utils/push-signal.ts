@@ -15,7 +15,7 @@ export const pushSignal = async (signal: SignalMessage): Promise<void> => {
 
     if ('coin' in signal) {
         logDebug(`[PushSignal] ✅ Pushed trade: ${signal.coin}`);
-    } else if ('status' in signal && signal.status === 'BOT_DONE') {
+    } else if ('status' in signal && signal.status === 'BOT_COMPLETED') {
         logDebug(`[PushSignal] ✅ ${signal.bot} completed`);
     } else {
         logWarn(`[PushSignal] ⚠️ Unknown signal format: ${stringify(signal)}`);

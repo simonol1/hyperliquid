@@ -12,7 +12,6 @@ import { logInfo, logError } from '../shared-utils/logger.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runBreakoutBot } from './strategies/breakout.js';
 import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
-import { scheduleDailyReport, scheduleHourlyReport } from '../shared-utils/reporter.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
 

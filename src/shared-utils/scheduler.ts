@@ -1,33 +1,32 @@
-import { sendTelegramMessage } from './telegram.js';
-import { logInfo } from './logger.js';
+// ✅ File: reporter/scheduler.ts
+import { sendTelegramMessage } from '../shared-utils/telegram.js';
+import { logInfo, logWarn } from '../shared-utils/logger.js';
 import cron from 'node-cron';
-import { stateManager } from './state-manager.js';
+import { stateManager } from '../shared-utils/state-manager.js';
 
-/**
- * Heartbeat every N hours
- */
+// Heartbeat to Monitoring Channel
 export const scheduleHeartbeat = (
     botName: string,
     getStatus: () => string | Promise<string>,
     intervalHours: number = 2
 ) => {
-    const cronExpression = `0 */${intervalHours} * * *`; // on the hour every N hours
-    cron.schedule(cronExpression, async () => {
+    cron.schedule(`0 */${intervalHours} * * *`, async () => {
         const status = await getStatus();
-        await sendTelegramMessage(`✅ *${botName} heartbeat*\n${status}`);
-    });
+        const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
+        if (!chatId) throw new Error("Missing Telegram Chat ID");
 
-    logInfo(`Heartbeat scheduled: every ${intervalHours} hour(s)`);
+        await sendTelegramMessage(`✅ *${botName} heartbeat*\n${status}`, chatId);
+
+        logWarn(`[Heartbeat] Sent for ${botName}`);
+    });
+    logWarn(`Heartbeat scheduled every ${intervalHours} hour(s)`);
 };
 
-/**
- * 🕛 Daily loss reset at 5pm
- */
+// Daily Loss Reset (Local Only)
 export const scheduleDailyReset = () => {
     cron.schedule('0 17 * * *', () => {
         stateManager.resetDailyLoss();
-        logInfo('[RiskManager] ✅ Daily loss reset at 5pm.');
+        logWarn('[RiskManager] ✅ Daily loss reset at 5pm.');
     });
-
-    logInfo('Daily loss reset schedule set: 5pm server time');
+    logWarn('Daily loss reset scheduled at 17:00 server time.');
 };

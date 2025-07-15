@@ -13,6 +13,8 @@ import { logInfo, logError, logDebug } from '../shared-utils/logger.js';
 import { isBotStatus, isTradeSignal, type TradeSignal } from '../shared-utils/types.js';
 import { scheduleHourlyReport, scheduleDailyReport } from '../shared-utils/reporter.js';
 import { scheduleDailyReset, scheduleHeartbeat } from '../shared-utils/scheduler.js';
+import { buildTelegramCycleSummary } from '../shared-utils/telegram-summaries.js';
+import { sendTelegramMessage } from '../shared-utils/telegram.js';
 
 type BotKey = 'trend' | 'breakout' | 'reversion';
 
@@ -60,16 +62,16 @@ while (true) {
 
     const all = raw.map(safeParse).filter(Boolean);
     const tradeSignals: TradeSignal[] = [];
-    const doneBots = new Set<BotKey>();
+    const completedBots = new Set<BotKey>();
 
     for (const s of all) {
         if (isTradeSignal(s)) tradeSignals.push(s);
-        else if (isBotStatus(s) && s.status === 'BOT_DONE') doneBots.add(s.bot as BotKey);
+        else if (isBotStatus(s) && s.status === 'BOT_COMPLETED') completedBots.add(s.bot as BotKey);
     }
 
-    logInfo(`[Orchestrator] 📥 Signals Received: ${tradeSignals.length} (${doneBots.size}/${BOTS_EXPECTED.length} bots done)`);
+    logInfo(`[Orchestrator] 📥 Signals Received: ${tradeSignals.length} (${completedBots.size}/${BOTS_EXPECTED.length} bots done)`);
 
-    if (doneBots.size < BOTS_EXPECTED.length) {
+    if (completedBots.size < BOTS_EXPECTED.length) {
         logDebug(`[Orchestrator] Not all bots done → waiting`);
         continue;
     }
@@ -95,17 +97,34 @@ while (true) {
 
     const slots = Math.max(0, maxConcurrentTrades - openCount);
 
-    logInfo(`[Orchestrator] 📊 Active Coins: ${openCount}, Slots Available: ${slots}, Coins=${[...activeCoins].join(', ')}`);
+    // Group by coin, keep strongest per coin
+    const strongestSignals = Array.from(
+        tradeSignals.reduce((acc, sig) => {
+            if (!acc.has(sig.coin) || sig.strength > acc.get(sig.coin)!.strength) {
+                acc.set(sig.coin, sig);
+            }
+            return acc;
+        }, new Map<string, typeof tradeSignals[0]>())
+    ).map(([_, sig]) => sig);
 
-    const ranked = tradeSignals.sort((a, b) => b.strength - a.strength).slice(0, slots);
+    const skipped = strongestSignals
+        .filter(sig => !ranked.find(r => r.coin === sig.coin))
+        .map(sig => ({ coin: sig.coin, reason: 'not top ranked' }));
+
+    // Sort strongest unique signals
+    const ranked = strongestSignals.sort((a, b) => b.strength - a.strength).slice(0, slots);
 
     if (!ranked.length) {
+        const cycleSummary = buildTelegramCycleSummary([], skipped, openCount);
+        const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
+        if (chatId) await sendTelegramMessage(cycleSummary, chatId);
+
         logInfo(`[Orchestrator] ⚪ No signals selected → end of loop`);
         await redis.del('trade_signals');
         continue;
     }
 
-    logInfo(`[Orchestrator] ✅ Executing ${ranked.length} signals → ${ranked.map(s => `${s.coin}(${s.strength.toFixed(1)})`).join(', ')}`);
+    logInfo(`[Orchestrator] ✅ Executing ${ranked.length} unique signals → ${ranked.map(s => `${s.coin}(${s.strength.toFixed(1)})`).join(', ')}`);
 
     for (const signal of ranked) {
         const botCfg = BOT_CONFIG[signal.bot as BotKey];
@@ -127,6 +146,10 @@ while (true) {
             logError(`[Orchestrator] ❌ Failed to execute ${signal.coin}: ${err.message}`);
         }
     }
+
+    const cycleSummary = buildTelegramCycleSummary(ranked, skipped, openCount);
+    const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
+    if (chatId) await sendTelegramMessage(cycleSummary, chatId);
 
     await redis.del('trade_signals');
     logInfo(`[Orchestrator] ✅ Round complete`);
