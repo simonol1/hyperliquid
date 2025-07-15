@@ -5,8 +5,8 @@ services:
     image: redis:7.2-alpine
     container_name: redis
     ports:
-      - "127.0.0.1:6379:6379"
-    command: ["redis-server", "--bind", "127.0.0.1", "--protected-mode", "yes"]
+      - "6379:6379"
+    command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "yes"]
     volumes:
       - redis_data:/data
     restart: always
