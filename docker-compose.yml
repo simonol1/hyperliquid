@@ -4,7 +4,9 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
-    command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "yes"]
+    # FIX: Disable protected-mode to allow connections from other Docker Compose services.
+    # This is safe because Redis is only exposed internally to the 'backend' network.
+    command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "no"]
     volumes:
       - redis_data:/data
     restart: always
