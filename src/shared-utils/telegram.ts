@@ -25,7 +25,7 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
         logDebug(`[Telegram] Attempting to send message to ${chatId}. URL: ${url}. Payload: ${JSON.stringify(payload)}`);
 
         await axios.post(url, payload, {
-            timeout: 15000, // Set a 15-second timeout for the request (15000ms)
+            timeout: 30000, // Increased timeout to 30 seconds (30000ms)
             // You can adjust this timeout based on your network conditions and Telegram API responsiveness.
             // If you still see timeouts, try increasing this value.
         });
@@ -34,6 +34,7 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
     } catch (err: any) {
         // Log the full error object to get more context
         logError(`❌ Telegram send failed: ${err.message || JSON.stringify(err)}`);
+
         if (err.response) {
             // The request was made and the server responded with a status code
             // that falls out of the range of 2xx
@@ -43,10 +44,16 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
         } else if (err.request) {
             // The request was made but no response was received
             // `error.request` is an instance of XMLHttpRequest in the browser and an http.ClientRequest in node.js
-            logError(`[Telegram] No response received. Request details: ${JSON.stringify(err.request)}`);
+            // NEW: Safely log relevant properties of err.request to avoid circular JSON error
+            logError(`[Telegram] No response received. Request details: ` +
+                `Method: ${err.config?.method}, URL: ${err.config?.url}, ` +
+                `Headers: ${JSON.stringify(err.config?.headers)}, ` +
+                `Timeout: ${err.config?.timeout}, Code: ${err.code}`);
         }
         if (err.config) {
-            logError(`[Telegram] Axios Config: ${JSON.stringify(err.config)}`);
+            // Log only specific, non-circular parts of the config if needed, or omit if err.request provides enough.
+            // For now, we'll rely on err.request for connection details.
+            // logError(`[Telegram] Axios Config: ${JSON.stringify(err.config)}`); // Removed this to avoid potential circularity
         }
         if (err.stack) {
             logError(`[Telegram] Error Stack: ${err.stack}`);
