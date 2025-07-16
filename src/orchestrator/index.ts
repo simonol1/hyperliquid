@@ -9,7 +9,7 @@ import { calculatePositionSize } from '../shared-utils/position-size.js';
 import { orchestrateEntry } from './orchestrate-entry.js';
 import { Hyperliquid } from '../sdk/index.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
-import { logInfo, logError, logDebug } from '../shared-utils/logger.js';
+import { logInfo, logError, logDebug, logWarn } from '../shared-utils/logger.js';
 import { isBotStatus, isTradeSignal, type TradeSignal } from '../shared-utils/types.js';
 import { scheduleHourlyReport, scheduleDailyReport } from '../shared-utils/reporter.js';
 import { scheduleDailyReset, scheduleHeartbeat } from '../shared-utils/scheduler.js';
@@ -29,6 +29,39 @@ const hyperliquid = new Hyperliquid({
 });
 
 await hyperliquid.connect();
+
+// NEW: Explicitly wait for Redis client to be truly open and ready
+// This is crucial to ensure Redis operations don't fail due to a closed client.
+// We wait for 'ready' AND ensure it's 'isOpen'.
+if (!redis.isOpen) { // Check if it's not already open
+    logInfo('[Orchestrator] Waiting for Redis client to be open and ready...');
+    await new Promise<void>((resolve, reject) => {
+        const onReady = () => {
+            if (redis.isOpen) { // Confirm it's actually open when ready
+                redis.off('ready', onReady);
+                redis.off('error', onError); // Remove error listener if successful
+                resolve();
+            } else {
+                // This case should ideally not happen if 'ready' implies 'isOpen',
+                // but adding a small delay or more robust check might be needed if it does.
+                logWarn('[Orchestrator] Redis client reported ready but not open. Waiting for reconnect...');
+            }
+        };
+        const onError = (err: Error) => {
+            // If an error occurs during the waiting period, reject the promise
+            redis.off('ready', onReady);
+            redis.off('error', onError);
+            reject(new Error(`Redis client error during startup wait: ${err.message}`));
+        };
+
+        redis.on('ready', onReady);
+        redis.on('error', onError); // Listen for errors during the wait
+    });
+    logInfo('[Orchestrator] Redis client is open and ready.');
+} else {
+    logInfo('[Orchestrator] Redis client already open and ready.');
+}
+
 const COIN_META_MAP = await buildMetaMap(hyperliquid);
 
 const CONFIG_BASE = path.resolve('./dist/config');
