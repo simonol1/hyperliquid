@@ -3,10 +3,6 @@ import { logError, logDebug } from './logger.js'; // Ensure logDebug is imported
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
 
-// Function to escape MarkdownV2 characters
-const escapeMarkdown = (text: string) =>
-    text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
-
 export const sendTelegramMessage = async (text: string, chatId: string): Promise<void> => {
     const botToken = process.env.TELEGRAM_BOT_TOKEN; // Assuming this environment variable exists
     if (!botToken) {
@@ -17,7 +13,7 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
     const url = `${TELEGRAM_API_BASE}${botToken}/sendMessage`;
     const payload = {
         chat_id: chatId,
-        text: escapeMarkdown(text), // Apply markdown escaping here
+        text: text,
         parse_mode: 'MarkdownV2',
     };
 
@@ -44,16 +40,11 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
         } else if (err.request) {
             // The request was made but no response was received
             // `error.request` is an instance of XMLHttpRequest in the browser and an http.ClientRequest in node.js
-            // NEW: Safely log relevant properties of err.request to avoid circular JSON error
+            // Safely log relevant properties of err.request to avoid circular JSON error
             logError(`[Telegram] No response received. Request details: ` +
                 `Method: ${err.config?.method}, URL: ${err.config?.url}, ` +
                 `Headers: ${JSON.stringify(err.config?.headers)}, ` +
                 `Timeout: ${err.config?.timeout}, Code: ${err.code}`);
-        }
-        if (err.config) {
-            // Log only specific, non-circular parts of the config if needed, or omit if err.request provides enough.
-            // For now, we'll rely on err.request for connection details.
-            // logError(`[Telegram] Axios Config: ${JSON.stringify(err.config)}`); // Removed this to avoid potential circularity
         }
         if (err.stack) {
             logError(`[Telegram] Error Stack: ${err.stack}`);
