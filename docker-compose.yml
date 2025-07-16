@@ -4,8 +4,6 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
-    # FIX: Disable protected-mode to allow connections from other Docker Compose services.
-    # This is safe because Redis is only exposed internally to the 'backend' network.
     command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "no"]
     volumes:
       - redis_data:/data
@@ -27,6 +25,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - MAX_GLOBAL_CONCURRENT_TRADES=6
+      - NODE_OPTIONS=--dns-result-order=ipv4first # <--- ADD THIS LINE
     command: ["node", "dist/orchestrator.mjs"]
     depends_on:
       - redis
@@ -50,6 +49,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - BOT_NAME=TREND
+      - NODE_OPTIONS=--dns-result-order=ipv4first # <--- ADD THIS LINE
     command: ["node", "dist/trend.mjs"]
     depends_on:
       - redis
@@ -73,6 +73,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - BOT_NAME=BREAKOUT
+      - NODE_OPTIONS=--dns-result-order=ipv4first # <--- ADD THIS LINE
     command: ["node", "dist/breakout.mjs"]
     depends_on:
       - redis
@@ -96,6 +97,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - BOT_NAME=REVERSION
+      - NODE_OPTIONS=--dns-result-order=ipv4first
     command: ["node", "dist/reversion.mjs"]
     depends_on:
       - redis
