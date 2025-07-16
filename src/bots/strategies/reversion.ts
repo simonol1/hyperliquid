@@ -64,6 +64,8 @@ export const runReversionBot = async (
 
       logInfo(`[Reversion Bot] 🟢 Signals sent: ${signals.length} | Active positions: ${realPositions.length}`);
 
+      await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
+
       // ✅ NEW: Telegram Cycle Summary
       const cycleSummary = buildTelegramCycleSummary(signals, skipped, realPositions.length);
       const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
