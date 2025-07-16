@@ -1,8 +1,7 @@
 import axios from 'axios';
 import { logError, logDebug } from './logger.js';
-
-// Removed: import httpAdapter from 'axios/lib/adapters/http';
-// This import caused the TypeScript error as it's an internal, unstable path.
+import http from 'http'; // Import Node.js 'http' module
+import https from 'https'; // Import Node.js 'https' module
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
 
@@ -25,9 +24,8 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
 
         await axios.post(url, payload, {
             timeout: 30000, // Keep 30-second timeout
-            // Removed: adapter: httpAdapter, // This is no longer needed and caused the import error
-            httpAgent: new (require('http').Agent)({ family: 4 }), // Force IPv4 for HTTP requests
-            httpsAgent: new (require('https').Agent)({ family: 4 }), // Force IPv4 for HTTPS requests
+            httpAgent: new http.Agent({ family: 4 }), // Force IPv4 for HTTP requests using imported 'http'
+            httpsAgent: new https.Agent({ family: 4 }), // Force IPv4 for HTTPS requests using imported 'https'
         });
 
         logDebug(`[Telegram] Message sent successfully to ${chatId}`);
