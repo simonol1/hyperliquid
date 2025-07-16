@@ -15,7 +15,10 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
     const url = `${TELEGRAM_API_BASE}${botToken}/sendMessage`;
     const payload = {
         chat_id: chatId,
-        text: text, // Text is expected to be correctly MarkdownV2 formatted
+        // The 'text' argument is expected to already be correctly MarkdownV2 formatted.
+        // The responsibility of escaping dynamic content (like coin names)
+        // now lies with the function that builds the 'text' (e.g., buildTelegramCycleSummary).
+        text: text,
         parse_mode: 'MarkdownV2',
     };
 
