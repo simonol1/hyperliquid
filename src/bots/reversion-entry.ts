@@ -12,6 +12,7 @@ import { logInfo, logError } from '../shared-utils/logger.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runReversionBot } from './strategies/reversion.js';
 import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
+import { redis } from '../shared-utils/redis-client.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
 
@@ -33,6 +34,23 @@ const hyperliquid = new Hyperliquid({
 
 await hyperliquid.connect();
 logInfo(`✅ [Reversion Bot] Connected to Hyperliquid`);
+
+// NEW: Explicitly wait for Redis client to be ready
+// This is crucial to ensure Redis operations don't fail due to a closed client.
+// The 'ready' event listener in redis-client.js will log success.
+if (!redis.isReady) {
+    logInfo('[Reversion Bot] Waiting for Redis client to be ready...');
+    await new Promise<void>((resolve) => {
+        const onReady = () => {
+            redis.off('ready', onReady);
+            resolve();
+        };
+        redis.on('ready', onReady);
+    });
+    logInfo('[Reversion Bot] Redis client is ready.');
+} else {
+    logInfo('[Reversion Bot] Redis client already ready.');
+}
 
 const metaMap = await buildMetaMap(hyperliquid);
 
