@@ -2,8 +2,14 @@ import axios from 'axios';
 import { logError, logDebug } from './logger.js';
 import http from 'http'; // Import Node.js 'http' module
 import https from 'https'; // Import Node.js 'https' module
+import { TradeSignal } from "./types.js"; // Ensure this import is present
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
+
+// Function to escape MarkdownV2 characters for literal use
+// This function is crucial and will be applied to all dynamic parts.
+const escapeMarkdown = (text: string) =>
+    text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
 
 export const sendTelegramMessage = async (text: string, chatId: string): Promise<void> => {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -15,9 +21,8 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
     const url = `${TELEGRAM_API_BASE}${botToken}/sendMessage`;
     const payload = {
         chat_id: chatId,
-        // The 'text' argument is expected to already be correctly MarkdownV2 formatted.
-        // The responsibility of escaping dynamic content (like coin names)
-        // now lies with the function that builds the 'text' (e.g., buildTelegramCycleSummary).
+        // The 'text' argument is expected to already be correctly formatted MarkdownV2.
+        // All dynamic content within 'text' should have been escaped by buildTelegramCycleSummary.
         text: text,
         parse_mode: 'MarkdownV2',
     };
@@ -49,4 +54,35 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
             logError(`[Telegram] Error Stack: ${err.stack}`);
         }
     }
+};
+
+// --- Telegram Summary Formatter ---
+
+export interface SignalSummary extends Pick<TradeSignal, 'coin' | 'side' | 'strength'> { }
+
+export type SkippedReason = {
+    coin: string;
+    reason: string;
+};
+
+export const buildTelegramCycleSummary = (signals: SignalSummary[], skipped: SkippedReason[], active: number): string => {
+    const top = signals.sort((a, b) => b.strength - a.strength)[0];
+
+    // Simplified topText and skippedText, with ALL dynamic parts escaped.
+    // This minimizes MarkdownV2 parsing complexity.
+    const topText = top ?
+        `${escapeMarkdown(top.coin)} ${escapeMarkdown(top.side)} *${top.strength.toFixed(1)}*` :
+        'None';
+
+    const skippedText = skipped.length ?
+        skipped.map(s => escapeMarkdown(s.coin)).join(escapeMarkdown(', ')) : // Join with escaped comma and space
+        'None';
+
+    return [
+        `*Cycle Summary*`, // Static Markdown bolding
+        `Signals: ${signals.length}`,
+        `Top: ${topText}`,
+        `Skipped: ${skipped.length} - ${skippedText}`, // Use hyphen as separator for clarity
+        `Active: ${active}`
+    ].join('\n');
 };

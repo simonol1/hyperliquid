@@ -6,8 +6,7 @@ import { evaluateReversionSignal } from '../../signals/reversion-signal';
 import { CoinMeta } from '../../shared-utils/coin-meta';
 import { pushSignal } from '../../shared-utils/push-signal';
 import { hasMinimumBalance } from '../../shared-utils/check-balance';
-import { sendTelegramMessage } from '../../shared-utils/telegram';
-import { SkippedReason, buildTelegramCycleSummary } from '../../shared-utils/telegram-summaries';
+import { sendTelegramMessage, buildTelegramCycleSummary, SkippedReason } from '../../shared-utils/telegram';
 import { TradeSignal } from '../../shared-utils/types';
 import { analyseData } from '../../shared-utils/analyse-asset';
 

@@ -10,8 +10,7 @@ import { CoinMeta } from '../../shared-utils/coin-meta';
 import { pushSignal } from '../../shared-utils/push-signal';
 import { hasMinimumBalance } from '../../shared-utils/check-balance';
 import { buildVirtualPositionFromLive } from '../../shared-utils/virtual-position';
-import { sendTelegramMessage } from '../../shared-utils/telegram';
-import { buildTelegramCycleSummary, SkippedReason } from '../../shared-utils/telegram-summaries';
+import { sendTelegramMessage, buildTelegramCycleSummary, SkippedReason } from '../../shared-utils/telegram';
 import { TradeSignal } from '../../shared-utils/types';
 
 export const runTrendBot = async (

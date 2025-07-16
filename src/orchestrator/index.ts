@@ -13,8 +13,7 @@ import { logInfo, logError, logDebug, logWarn } from '../shared-utils/logger.js'
 import { isBotStatus, isTradeSignal, type TradeSignal } from '../shared-utils/types.js';
 import { scheduleHourlyReport, scheduleDailyReport } from '../shared-utils/reporter.js';
 import { scheduleDailyReset, scheduleHeartbeat } from '../shared-utils/scheduler.js';
-import { buildTelegramCycleSummary } from '../shared-utils/telegram-summaries.js';
-import { sendTelegramMessage } from '../shared-utils/telegram.js';
+import { sendTelegramMessage, buildTelegramCycleSummary } from '../shared-utils/telegram';
 
 type BotKey = 'trend' | 'breakout' | 'reversion';
 
