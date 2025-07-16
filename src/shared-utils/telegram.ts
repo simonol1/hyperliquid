@@ -71,7 +71,8 @@ export const buildTelegramCycleSummary = (signals: SignalSummary[], skipped: Ski
     // Simplified topText and skippedText, with ALL dynamic parts escaped.
     // This minimizes MarkdownV2 parsing complexity.
     const topText = top ?
-        `${escapeMarkdown(top.coin)} ${escapeMarkdown(top.side)} *${top.strength.toFixed(1)}*` :
+        // FIX: Apply escapeMarkdown to the numerical strength value as well
+        `${escapeMarkdown(top.coin)} ${escapeMarkdown(top.side)} *${escapeMarkdown(top.strength.toFixed(1))}*` :
         'None';
 
     const skippedText = skipped.length ?
