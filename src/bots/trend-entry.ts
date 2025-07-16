@@ -7,11 +7,12 @@ dotenv.config();
 
 import fs from 'fs';
 import path from 'path';
-import { Hyperliquid } from '../sdk/index.js';
-import { logInfo, logError } from '../shared-utils/logger.js';
+import { Hyperliquid } from '../sdk/index'
+import { logInfo, logWarn, logError } from '../shared-utils/logger.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runTrendBot } from './strategies/trend.js';
 import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
+// Import the Redis client
 import { redis } from '../shared-utils/redis-client.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
@@ -37,23 +38,37 @@ const hyperliquid = new Hyperliquid({
 await hyperliquid.connect();
 logInfo(`✅ [Trend Bot] Connected to Hyperliquid`);
 
-// NEW: Explicitly wait for Redis client to be ready
+// NEW: Explicitly wait for Redis client to be truly open and ready
 // This is crucial to ensure Redis operations don't fail due to a closed client.
-// The 'ready' event listener in redis-client.js will log success.
-if (!redis.isReady) {
-    logInfo('[Trend Bot] Waiting for Redis client to be ready...');
-    await new Promise<void>((resolve) => {
+// We wait for 'ready' AND ensure it's 'isOpen'.
+if (!redis.isOpen) { // Check if it's not already open
+    logInfo('[Trend Bot] Waiting for Redis client to be open and ready...');
+    await new Promise<void>((resolve, reject) => {
         const onReady = () => {
-            redis.off('ready', onReady);
-            resolve();
+            if (redis.isOpen) { // Confirm it's actually open when ready
+                redis.off('ready', onReady);
+                redis.off('error', onError); // Remove error listener if successful
+                resolve();
+            } else {
+                // This case should ideally not happen if 'ready' implies 'isOpen',
+                // but adding a small delay or more robust check might be needed if it does.
+                logWarn('[Trend Bot] Redis client reported ready but not open. Waiting for reconnect...');
+            }
         };
-        redis.on('ready', onReady);
-    });
-    logInfo('[Trend Bot] Redis client is ready.');
-} else {
-    logInfo('[Trend Bot] Redis client already ready.');
-}
+        const onError = (err: Error) => {
+            // If an error occurs during the waiting period, reject the promise
+            redis.off('ready', onReady);
+            redis.off('error', onError);
+            reject(new Error(`Redis client error during startup wait: ${err.message}`));
+        };
 
+        redis.on('ready', onReady);
+        redis.on('error', onError); // Listen for errors during the wait
+    });
+    logInfo('[Trend Bot] Redis client is open and ready.');
+} else {
+    logInfo('[Trend Bot] Redis client already open and ready.');
+}
 
 const metaMap = await buildMetaMap(hyperliquid);
 
@@ -65,5 +80,4 @@ logInfo(`🚀 Starting Trend Bot`);
 // Run the main bot logic
 await runTrendBot(hyperliquid, trendConfig, metaMap);
 
-// Schedule heartbeat (this should ideally be outside the runTrendBot loop if it's infinite)
 scheduleHeartbeat(`Trend Bot`, () => `Running`, 1);

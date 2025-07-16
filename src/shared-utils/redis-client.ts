@@ -1,10 +1,11 @@
 import { createClient } from 'redis';
-import { logInfo, logError, logWarn } from './logger.js';
+import { logInfo, logError, logWarn } from './logger.js'; // Ensure all logger functions are imported
 
 export const redis = createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379',
     // Add retry strategy for better resilience
     socket: {
+        connectTimeout: 10000, // Add a connection atimeout (e.g., 10 seconds)
         reconnectStrategy: (retries) => {
             if (retries > 20) { // Limit retries to prevent infinite loops
                 logError('[Redis Client] Max reconnection attempts reached. Giving up.');
@@ -30,7 +31,7 @@ redis.on('end', () => {
 });
 
 redis.on('error', (err) => {
-    logError(`[Redis Client] ❌ Error: ${err.message}`);
+    logError(`[Redis Client] ❌ Error: ${JSON.stringify(err)}`);
 });
 
 // Immediately attempt to connect.
