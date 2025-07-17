@@ -139,12 +139,14 @@ while (true) {
         }, new Map<string, typeof tradeSignals[0]>())
     ).map(([_, sig]) => sig);
 
+    // Sort strongest unique signals
+    const ranked = strongestSignals.sort((a, b) => b.strength - a.strength).slice(0, slots);
+
+    // Keep track of skipped signals
     const skipped = strongestSignals
         .filter(sig => !ranked.find(r => r.coin === sig.coin))
         .map(sig => ({ coin: sig.coin, reason: 'not top ranked' }));
 
-    // Sort strongest unique signals
-    const ranked = strongestSignals.sort((a, b) => b.strength - a.strength).slice(0, slots);
 
     if (!ranked.length) {
         const cycleSummary = buildTelegramCycleSummary([], skipped, openCount);
