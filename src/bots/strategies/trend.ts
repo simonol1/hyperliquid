@@ -7,11 +7,11 @@ import { evaluateExit } from '../../core/evaluate-exit';
 import { executeExit } from '../../core/execute-exit';
 import { evaluateTrendSignal } from '../../signals/trend-signal';
 import { CoinMeta } from '../../shared-utils/coin-meta';
-import { pushSignal } from '../../shared-utils/push-signal';
+import { TradeSignal } from '../../shared-utils/types';
 import { hasMinimumBalance } from '../../shared-utils/check-balance';
 import { buildVirtualPositionFromLive } from '../../shared-utils/virtual-position';
-import { sendTelegramMessage, buildTelegramCycleSummary, SkippedReason } from '../../shared-utils/telegram';
-import { TradeSignal } from '../../shared-utils/types';
+import { pushSignal } from '../../shared-utils/push-signal';
+import { SkippedReason } from '../../shared-utils/telegram';
 
 export const runTrendBot = async (
   hyperliquid: Hyperliquid,
@@ -40,7 +40,15 @@ export const runTrendBot = async (
       const skipped: SkippedReason[] = [];
 
       for (const { coin, analysis } of analyses) {
-        if (!analysis) continue;
+        if (!analysis) {
+          skipped.push({ coin, reason: 'No analysis returned' });
+          continue;
+        }
+
+        if (stateManager.isInCooldown(coin)) {
+          skipped.push({ coin, reason: 'In cooldown' });
+          continue;
+        }
 
         const volume = analysis.volumeUsd ?? 0;
         const minVol = config.coinConfig?.[coin]?.minVolumeUsd ?? config.minVolumeUsd ?? 0;
@@ -50,7 +58,10 @@ export const runTrendBot = async (
         }
 
         const signal = evaluateTrendSignal(coin, analysis, config);
-        if (signal.type === 'HOLD') continue;
+        if (signal.type === 'HOLD') {
+          skipped.push({ coin, reason: 'HOLD after trend evaluation' });
+          continue;
+        }
 
         const tradeSignal: TradeSignal = {
           bot: config.strategy,
@@ -66,7 +77,8 @@ export const runTrendBot = async (
         await pushSignal(tradeSignal);
       }
 
-      logInfo(`[Trend Bot] 🟢 Signals sent: ${signals.length} | Active positions: ${realPositions.length}`);
+      logInfo(`[Trend Bot] 🟢 Signals sent: ${signals.length} | Positions active: ${realPositions.length}`);
+      logInfo(`[Trend Bot] 📝 Skipped=${skipped.length} → Reasons: ${skipped.map(s => `${s.coin}(${s.reason})`).join(', ') || 'None'}`);
 
       for (const pos of realPositions) {
         const coin = pos.position.coin;
@@ -88,12 +100,6 @@ export const runTrendBot = async (
       }
 
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
-
-      // ✅ Telegram Cycle Summary
-      const cycleSummary = buildTelegramCycleSummary(signals, skipped, realPositions.length);
-      const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
-      if (!chatId) throw new Error("Missing Telegram Chat ID");
-      await sendTelegramMessage(cycleSummary, chatId);
 
     } catch (err: any) {
       logError(`[Trend Bot] ❌ Error: ${err.message}`);

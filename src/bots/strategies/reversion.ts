@@ -1,14 +1,18 @@
+// ✅ Reversion Bot with Enhanced Loop Logging (No Telegram Cycle Summary)
 import { Hyperliquid } from '../../sdk/index';
+import { analyseData } from '../../shared-utils/analyse-asset';
 import { stateManager } from '../../shared-utils/state-manager';
 import { logInfo, logError } from '../../shared-utils/logger';
 import { BotConfig } from '../config/bot-config';
+import { evaluateExit } from '../../core/evaluate-exit';
+import { executeExit } from '../../core/execute-exit';
 import { evaluateReversionSignal } from '../../signals/reversion-signal';
 import { CoinMeta } from '../../shared-utils/coin-meta';
 import { pushSignal } from '../../shared-utils/push-signal';
 import { hasMinimumBalance } from '../../shared-utils/check-balance';
-import { sendTelegramMessage, buildTelegramCycleSummary, SkippedReason } from '../../shared-utils/telegram';
+import { buildVirtualPositionFromLive } from '../../shared-utils/virtual-position';
+import { SkippedReason } from '../../shared-utils/telegram';
 import { TradeSignal } from '../../shared-utils/types';
-import { analyseData } from '../../shared-utils/analyse-asset';
 
 export const runReversionBot = async (
   hyperliquid: Hyperliquid,
@@ -33,11 +37,19 @@ export const runReversionBot = async (
         analysis: await analyseData(hyperliquid, coin, config),
       })));
 
-      let signals: TradeSignal[] = [];
-      let skipped: SkippedReason[] = [];
+      const signals: TradeSignal[] = [];
+      const skipped: SkippedReason[] = [];
 
       for (const { coin, analysis } of analyses) {
-        if (!analysis) continue;
+        if (!analysis) {
+          skipped.push({ coin, reason: 'No analysis returned' });
+          continue;
+        }
+
+        if (stateManager.isInCooldown(coin)) {
+          skipped.push({ coin, reason: 'In cooldown' });
+          continue;
+        }
 
         const volume = analysis.volumeUsd ?? 0;
         const minVol = config.coinConfig?.[coin]?.minVolumeUsd ?? config.minVolumeUsd ?? 0;
@@ -47,9 +59,12 @@ export const runReversionBot = async (
         }
 
         const signal = evaluateReversionSignal(coin, analysis, config);
-        if (signal.type === 'HOLD') continue;
+        if (signal.type === 'HOLD') {
+          skipped.push({ coin, reason: 'HOLD after reversion evaluation' });
+          continue;
+        }
 
-        signals.push({
+        const tradeSignal: TradeSignal = {
           bot: config.strategy,
           coin,
           side: signal.type === 'BUY' ? 'LONG' : 'SHORT',
@@ -57,20 +72,34 @@ export const runReversionBot = async (
           entryPrice: analysis.currentPrice,
           strength: signal.strength,
           timestamp: Date.now(),
-        });
+        };
 
-        await pushSignal(signals[signals.length - 1]);
+        signals.push(tradeSignal);
+        await pushSignal(tradeSignal);
       }
 
       logInfo(`[Reversion Bot] 🟢 Signals sent: ${signals.length} | Active positions: ${realPositions.length}`);
+      logInfo(`[Reversion Bot] 📝 Skipped=${skipped.length} → Reasons: ${skipped.map(s => `${s.coin}(${s.reason})`).join(', ') || 'None'}`);
+
+      for (const pos of realPositions) {
+        const coin = pos.position.coin;
+        const szi = parseFloat(pos.position.szi);
+        const entryPx = parseFloat(pos.position.entryPx);
+        const virtualPos = await buildVirtualPositionFromLive(coin, szi, entryPx);
+        if (!virtualPos) continue;
+
+        const analysis = await analyseData(hyperliquid, coin, config);
+        if (!analysis) continue;
+
+        const exit = evaluateExit(virtualPos, analysis, config);
+        if (exit) {
+          await executeExit(hyperliquid, config.subaccountAddress, exit, metaMap.get(coin));
+          stateManager.clearHighWatermark(coin);
+          stateManager.setCooldown(coin, 5 * 60 * 1000);
+        }
+      }
 
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
-
-      // ✅ NEW: Telegram Cycle Summary
-      const cycleSummary = buildTelegramCycleSummary(signals, skipped, realPositions.length);
-      const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
-      if (!chatId) throw new Error("Missing Telegram Chat ID");
-      await sendTelegramMessage(cycleSummary, chatId);
 
     } catch (err: any) {
       logError(`[Reversion Bot] ❌ Error: ${err.message}`);
@@ -80,5 +109,4 @@ export const runReversionBot = async (
     logInfo(`[Reversion Bot] 💤 Sleeping ${sleep}ms`);
     await new Promise(res => setTimeout(res, sleep));
   }
-
 };

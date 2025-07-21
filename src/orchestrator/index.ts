@@ -10,10 +10,11 @@ import { orchestrateEntry } from './orchestrate-entry.js';
 import { Hyperliquid } from '../sdk/index.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { logInfo, logError, logDebug, logWarn } from '../shared-utils/logger.js';
-import { isBotStatus, isTradeSignal, type TradeSignal } from '../shared-utils/types.js';
-import { scheduleHourlyReport, scheduleDailyReport } from '../shared-utils/reporter.js';
-import { scheduleDailyReset, scheduleHeartbeat } from '../shared-utils/scheduler.js';
+import { isBotStatus, isTradeSignal, TradeSignal } from '../shared-utils/types.js';
+import { scheduleTwiceDailyReport } from '../shared-utils/reporter.js';
+import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
 import { sendTelegramMessage, buildTelegramCycleSummary } from '../shared-utils/telegram';
+import { logCycleSummary } from '../shared-utils/summary-logger.js';
 
 type BotKey = 'trend' | 'breakout' | 'reversion';
 
@@ -77,114 +78,103 @@ const BOTS_EXPECTED: BotKey[] = ['trend', 'breakout', 'reversion'];
 
 logInfo(`[Orchestrator] ✅ Ready with vault ${subaccountAddress}`);
 
-scheduleHourlyReport();
-scheduleDailyReport();
-scheduleDailyReset();
+scheduleTwiceDailyReport();
 scheduleHeartbeat('Orchestrator', () => 'Running fine', 1);
 
 while (true) {
-    logDebug(`[Orchestrator] Polling for signals...`);
+    logDebug(`[Orchestrator] Polling signals...`);
     await new Promise(res => setTimeout(res, 10_000));
 
     const raw = await redis.lRange('trade_signals', 0, -1);
-    if (!raw?.length) {
-        logDebug(`[Orchestrator] No signals → loop again`);
-        continue;
-    }
+    if (!raw?.length) continue;
 
-    const all = raw.map(safeParse).filter(Boolean);
-    const tradeSignals: TradeSignal[] = [];
-    const completedBots = new Set<BotKey>();
+    const parsed = raw.map(safeParse).filter(Boolean);
+    const tradeSignals = parsed.filter(isTradeSignal);
+    const completedBots = new Set(parsed.filter(isBotStatus).filter(x => x.status === 'BOT_COMPLETED').map(x => x.bot));
 
-    for (const s of all) {
-        if (isTradeSignal(s)) tradeSignals.push(s);
-        else if (isBotStatus(s) && s.status === 'BOT_COMPLETED') completedBots.add(s.bot as BotKey);
-    }
-
-    logInfo(`[Orchestrator] 📥 Signals Received: ${tradeSignals.length} (${completedBots.size}/${BOTS_EXPECTED.length} bots done)`);
-
-    if (completedBots.size < BOTS_EXPECTED.length) {
-        logDebug(`[Orchestrator] Not all bots done → waiting`);
-        continue;
-    }
-
+    logInfo(`[Orchestrator] Signals=${tradeSignals.length}, Bots done=${completedBots.size}/${BOTS_EXPECTED.length}`);
+    if (completedBots.size < BOTS_EXPECTED.length) continue;
     if (!tradeSignals.length) {
-        logInfo(`[Orchestrator] ✅ No trade signals → clearing queue`);
         await redis.del('trade_signals');
         continue;
     }
 
+    const signalCountsByBot = tradeSignals.reduce((acc, sig) => {
+        acc[sig.bot] = (acc[sig.bot] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    logInfo(`[Orchestrator] 📊 Signal breakdown by bot: ${JSON.stringify(signalCountsByBot)}`);
+
+    // ✅ Golden Signal Tracking
+    const goldenSignals = tradeSignals.filter(sig => sig.strength >= 90);
+    const goldenByBot = goldenSignals.reduce((acc, sig) => {
+        acc[sig.bot] = (acc[sig.bot] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    if (Object.keys(goldenByBot).length) {
+        logInfo(`[Orchestrator] 🌟 Golden signals this cycle: ${JSON.stringify(goldenByBot)}`);
+    }
+
+    // ✅ Active Coin Filtering
     const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
-    const realPositions = perpState.assetPositions.filter(p => Math.abs(parseFloat(p.position.szi)) > 0);
-    const openOrders = await hyperliquid.info.getUserOpenOrders(subaccountAddress);
     const walletBalance = parseFloat(perpState.withdrawable);
 
-    const activeCoins = new Set([
-        ...realPositions.map(p => p.position.coin),
-        ...openOrders.map(o => o.coin),
-    ]);
+    const openPositions = perpState.assetPositions.filter(p => Math.abs(parseFloat(p.position.szi)) > 0).map(p => p.position.coin);
+    const openOrders = (await hyperliquid.info.getUserOpenOrders(subaccountAddress)).map(o => o.coin);
+    const activeCoins = new Set([...openPositions, ...openOrders]);
+
+    const filteredSignals = tradeSignals.filter(sig => !activeCoins.has(sig.coin));
 
     const openCount = activeCoins.size;
-    const maxConcurrentTrades = parseInt(process.env.MAX_GLOBAL_CONCURRENT_TRADES || '6', 10);
+    const slots = Math.max(0, parseInt(process.env.MAX_GLOBAL_CONCURRENT_TRADES || '6') - openCount);
 
-    const slots = Math.max(0, maxConcurrentTrades - openCount);
-
-    // Group by coin, keep strongest per coin
+    // ✅ Take the strongest filtered signals
     const strongestSignals = Array.from(
-        tradeSignals.reduce((acc, sig) => {
-            if (!acc.has(sig.coin) || sig.strength > acc.get(sig.coin)!.strength) {
-                acc.set(sig.coin, sig);
-            }
+        filteredSignals.reduce((acc, sig) => {
+            if (!acc.has(sig.coin) || sig.strength > acc.get(sig.coin)!.strength) acc.set(sig.coin, sig);
             return acc;
-        }, new Map<string, typeof tradeSignals[0]>())
+        }, new Map<string, TradeSignal>())
     ).map(([_, sig]) => sig);
 
-    // Sort strongest unique signals
     const ranked = strongestSignals.sort((a, b) => b.strength - a.strength).slice(0, slots);
+    const skipped = strongestSignals.filter(s => !ranked.includes(s)).map(s => ({ coin: s.coin, reason: 'not top ranked' }));
 
-    // Keep track of skipped signals
-    const skipped = strongestSignals
-        .filter(sig => !ranked.find(r => r.coin === sig.coin))
-        .map(sig => ({ coin: sig.coin, reason: 'not top ranked' }));
+    logCycleSummary(ranked, skipped, openCount);
 
-
-    if (!ranked.length) {
-        const cycleSummary = buildTelegramCycleSummary([], skipped, openCount);
-        const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
-        if (chatId) await sendTelegramMessage(cycleSummary, chatId);
-
-        logInfo(`[Orchestrator] ⚪ No signals selected → end of loop`);
-        await redis.del('trade_signals');
-        continue;
+    if (ranked.some(sig => sig.strength >= 90) && process.env.TELEGRAM_MONITOR_CHAT_ID) {
+        const summary = buildTelegramCycleSummary(ranked, skipped, openCount);
+        await sendTelegramMessage(summary, process.env.TELEGRAM_MONITOR_CHAT_ID);
     }
 
-    logInfo(`[Orchestrator] ✅ Executing ${ranked.length} unique signals → ${ranked.map(s => `${s.coin}(${s.strength.toFixed(1)})`).join(', ')}`);
+    logDebug(`[Orchestrator] Executing ${ranked.length} trades → ${ranked.map(s => `${s.coin}(${s.strength.toFixed(1)})`).join(', ')}`);
 
     for (const signal of ranked) {
-        const botCfg = BOT_CONFIG[signal.bot as BotKey];
-        const coinMeta = COIN_META_MAP.get(signal.coin);
-        if (!botCfg || !coinMeta) {
+        const cfg = BOT_CONFIG[signal.bot as BotKey];
+        const meta = COIN_META_MAP.get(signal.coin);
+        if (!cfg || !meta) {
             logError(`[Orchestrator] ⚠️ Missing config/meta for ${signal.bot}/${signal.coin}`);
             continue;
         }
+        const pos = calculatePositionSize(signal.strength, walletBalance, cfg.riskMapping);
 
-        const posMeta = calculatePositionSize(signal.strength, walletBalance, botCfg.riskMapping);
-        const maxLev = coinMeta.maxLeverage ?? botCfg.fallbackLeverage ?? posMeta.leverage;
-        const finalLev = Math.min(posMeta.leverage, maxLev);
+        if (pos.capitalRiskUsd < 10) {
+            logInfo(`[Orchestrator] ⚠️ Skipping ${signal.coin}: Risk $${pos.capitalRiskUsd.toFixed(2)} < $10 minimum`);
+            continue;
+        }
 
-        logInfo(`[Orchestrator] 🚀 ${signal.coin} | ${signal.side} | Lev=${finalLev.toFixed(1)}x | Risk=$${posMeta.capitalRiskUsd.toFixed(2)}`);
+        const lev = Math.min(pos.leverage, meta.maxLeverage ?? cfg.fallbackLeverage ?? pos.leverage);
 
+        logInfo(`[Orchestrator] 🚀 ${signal.coin} | ${signal.side} | Lev=${lev.toFixed(1)}x | Risk=$${pos.capitalRiskUsd.toFixed(2)}`);
         try {
-            await orchestrateEntry(hyperliquid, signal, { ...posMeta, leverage: finalLev }, botCfg, coinMeta);
-        } catch (err: any) {
-            logError(`[Orchestrator] ❌ Failed to execute ${signal.coin}: ${err.message}`);
+            await orchestrateEntry(hyperliquid, signal, { ...pos, leverage: lev }, cfg, meta);
+        } catch (err) {
+            logError(`[Orchestrator] ❌ Failed to execute ${signal.coin}: ${(err as Error).message}`);
         }
     }
-
-    const cycleSummary = buildTelegramCycleSummary(ranked, skipped, openCount);
-    const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
-    if (chatId) await sendTelegramMessage(cycleSummary, chatId);
 
     await redis.del('trade_signals');
     logInfo(`[Orchestrator] ✅ Round complete`);
 }
+

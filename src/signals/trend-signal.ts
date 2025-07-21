@@ -1,7 +1,7 @@
-import { logInfo, logDebug } from '../shared-utils/logger.js';
-import type { Analysis } from '../shared-utils/analyse-asset.js';
-import type { BaseSignal } from '../shared-utils/types.js';
-import type { BotConfig } from '../bots/config/bot-config.js';
+import { logInfo, logDebug } from '../shared-utils/logger';
+import type { Analysis } from '../shared-utils/analyse-asset';
+import type { BaseSignal } from '../shared-utils/types';
+import type { BotConfig } from '../bots/config/bot-config';
 
 export const evaluateTrendSignal = (
   asset: string,
@@ -23,39 +23,24 @@ export const evaluateTrendSignal = (
     type = 'SELL';
   }
 
-  let emaFactor = 0;
-  let rsiFactor = 0;
-  let macdFactor = 0;
-
+  let emaFactor = 0, rsiFactor = 0, macdFactor = 0;
   if (type !== 'HOLD') {
-    const emaSpreadPct =
-      (Math.abs(fastEma - mediumEma) + Math.abs(mediumEma - slowEma)) /
-      slowEma *
-      100;
-    emaFactor = Math.min(emaSpreadPct * 5, 50); // Heaviest weight
+    const emaSpreadPct = ((Math.abs(fastEma - mediumEma) + Math.abs(mediumEma - slowEma)) / slowEma) * 100;
+    emaFactor = Math.min(emaSpreadPct * 5, 50);
 
-    const rsiTrend =
-      type === 'BUY'
-        ? Math.max(0, rsi - config.rsiOverboughtThreshold)
-        : Math.max(0, config.rsiOversoldThreshold - rsi);
+    const rsiTrend = type === 'BUY'
+      ? Math.max(0, rsi - config.rsiOverboughtThreshold)
+      : Math.max(0, config.rsiOversoldThreshold - rsi);
     rsiFactor = Math.min((rsiTrend / 10) * 25, 25);
 
     macdFactor = Math.min(Math.abs(macd), 5) / 5 * 25;
   }
 
   const strength = Math.min(emaFactor + rsiFactor + macdFactor, 100);
+  const output = `[Signal] ${asset} | Trend | Type=${type} | EMAs: F=${fastEma.toFixed(2)} M=${mediumEma.toFixed(2)} S=${slowEma.toFixed(2)} | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`;
 
-  const output = `[Signal] ${asset} | Trend | Type=${type} | EMAs: F=${fastEma.toFixed(
-    2
-  )} M=${mediumEma.toFixed(2)} S=${slowEma.toFixed(2)} | RSI=${rsi.toFixed(
-    1
-  )} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`;
-
-  if (type === 'HOLD') {
-    logDebug(output);
-  } else {
-    logInfo(output);
-  }
+  if (type === 'HOLD') logDebug(output);
+  else logInfo(output);
 
   return { type, strength };
 };

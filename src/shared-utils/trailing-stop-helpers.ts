@@ -22,12 +22,17 @@ export const checkTrailingStop = (
         ? currentPrice <= trailingStop
         : currentPrice >= trailingStop;
 
-    logInfo(`[Trailing SL] ${isLong ? 'LONG' : 'SHORT'} position | Current: ${currentPrice} | Watermark: ${highestPrice} | Trigger: ${trailingStop.toFixed(4)} | Hit: ${hit ? '✅' : '—'}`);
+    // Log only when hit or within 1% of trailing stop
+    const distancePct = isLong
+        ? ((currentPrice - trailingStop) / trailingStop) * 100
+        : ((trailingStop - currentPrice) / trailingStop) * 100;
+
+    if (hit || distancePct <= 1) {
+        logInfo(`[Trailing SL] ${isLong ? 'LONG' : 'SHORT'} | Current: ${currentPrice} | Watermark: ${highestPrice} | Trigger: ${trailingStop.toFixed(4)} | Hit: ${hit ? '✅' : '—'}`);
+    }
 
     return hit;
 };
-
-
 
 export const checkTakeProfit = (
     position: Position,

@@ -10,7 +10,11 @@ export const evaluateReversionSignal = (
 ): BaseSignal => {
     const { currentPrice, slowEma, rsi, macd } = analysis;
 
-    // Allow per-coin distance thresholds
+    if (!slowEma) {
+        logDebug(`[Signal] ${asset}: Reversion | Skipped — missing slowEma`);
+        return { type: 'HOLD', strength: 0 };
+    }
+
     const overrides = config.coinConfig?.[asset];
     const threshold = overrides?.reversionDistanceThreshold ?? 0.5;
     const maxDistance = overrides?.reversionMaxDistance ?? 5;
@@ -21,21 +25,23 @@ export const evaluateReversionSignal = (
     if (distanceFromMean > threshold) type = 'SELL';
     else if (distanceFromMean < -threshold) type = 'BUY';
 
-    let strength = 0;
-    if (type !== 'HOLD') {
-        const distanceFactor = Math.min(Math.abs(distanceFromMean) / maxDistance * 40, 40);
+    let distanceFactor = 0, rsiFactor = 0, macdFactor = 0;
 
-        let rsiFactor = 0;
+    if (type !== 'HOLD') {
+        distanceFactor = Math.min((Math.abs(distanceFromMean) / maxDistance) * 50, 50);
+
         if (type === 'SELL' && rsi > config.rsiOverboughtThreshold) {
-            rsiFactor = Math.min((rsi - config.rsiOverboughtThreshold) / 20 * 40, 40);
+            const rsiOver = rsi - config.rsiOverboughtThreshold;
+            rsiFactor = Math.min((rsiOver / 20) * 30, 30);
         } else if (type === 'BUY' && rsi < config.rsiOversoldThreshold) {
-            rsiFactor = Math.min((config.rsiOversoldThreshold - rsi) / 20 * 40, 40);
+            const rsiUnder = config.rsiOversoldThreshold - rsi;
+            rsiFactor = Math.min((rsiUnder / 20) * 30, 30);
         }
 
-        const macdFactor = Math.min(Math.abs(macd), 5) / 5 * 20;
-        strength = distanceFactor + rsiFactor + macdFactor;
-        if (strength > 100) strength = 100;
+        macdFactor = Math.min(Math.abs(macd), 5) / 5 * 20;
     }
+
+    const strength = Math.min(distanceFactor + rsiFactor + macdFactor, 100);
 
     const output = `[Signal] ${asset} | Reversion | Type=${type} | Distance=${distanceFromMean.toFixed(
         2

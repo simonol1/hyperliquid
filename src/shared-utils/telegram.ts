@@ -68,21 +68,21 @@ export type SkippedReason = {
 export const buildTelegramCycleSummary = (signals: SignalSummary[], skipped: SkippedReason[], active: number): string => {
     const top = signals.sort((a, b) => b.strength - a.strength)[0];
 
-    // Simplified topText and skippedText, with ALL dynamic parts escaped.
-    // This minimizes MarkdownV2 parsing complexity.
-    const topText = top ?
-        `${escapeMarkdown(top.coin)} ${escapeMarkdown(top.side)} *${escapeMarkdown(top.strength.toFixed(1))}*` :
-        'None';
+    const isGolden = (strength: number) => strength >= 90;
+    const star = (strength: number) => isGolden(strength) ? '⭐️ ' : '';
 
-    const skippedText = skipped.length ?
-        skipped.map(s => escapeMarkdown(s.coin)).join(escapeMarkdown(', ')) : // Join with escaped comma and space
-        'None';
+    const topText = top
+        ? `${star(top.strength)}${escapeMarkdown(top.coin)} ${escapeMarkdown(top.side)} *${escapeMarkdown(top.strength.toFixed(1))}*`
+        : 'None';
+
+    const skippedText = skipped.length
+        ? skipped.map(s => escapeMarkdown(s.coin)).join(escapeMarkdown(', '))
+        : 'None';
 
     return [
-        `*Cycle Summary*`, // Static Markdown bolding
+        `*Cycle Summary*`,
         `Signals: ${signals.length}`,
         `Top: ${topText}`,
-        // FIX: Escape the literal hyphen in "Skipped: X - Y"
         `Skipped: ${skipped.length} ${escapeMarkdown('-')} ${skippedText}`,
         `Active: ${active}`
     ].join('\n');
