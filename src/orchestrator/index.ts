@@ -99,24 +99,21 @@ while (true) {
         continue;
     }
 
-    const signalCountsByBot = tradeSignals.reduce((acc, sig) => {
+    const signalCountsByBot = tradeSignals.reduce((acc: Record<string, number>, sig: TradeSignal) => {
         acc[sig.bot] = (acc[sig.bot] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
-    logInfo(`[Orchestrator] 📊 Signal breakdown by bot: ${JSON.stringify(signalCountsByBot)}`);
+    logInfo(`[Orchestrator] 📊 Signals by bot → ${Object.entries(signalCountsByBot)
+        .map(([bot, count]) => `${bot}: ${count}`)
+        .join(', ')}`);
 
-    // ✅ Golden Signal Tracking
     const goldenSignals = tradeSignals.filter(sig => sig.strength >= 90);
-    const goldenByBot = goldenSignals.reduce((acc, sig) => {
-        acc[sig.bot] = (acc[sig.bot] || 0) + 1;
-        return acc;
-    }, {} as Record<string, number>);
 
-    if (Object.keys(goldenByBot).length) {
-        logInfo(`[Orchestrator] 🌟 Golden signals this cycle: ${JSON.stringify(goldenByBot)}`);
+    if (goldenSignals.length) {
+        const goldenSummary = goldenSignals.map(sig => `${sig.coin}(${sig.side}, S=${sig.strength.toFixed(1)}, ${sig.bot})`).join(', ');
+        logInfo(`[Orchestrator] 🌟 Golden signals → ${goldenSummary}`);
     }
-
     // ✅ Active Coin Filtering
     const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
     const walletBalance = parseFloat(perpState.withdrawable);

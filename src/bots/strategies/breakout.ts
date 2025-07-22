@@ -1,4 +1,4 @@
-// ✅ Breakout Bot with Enhanced Loop Logging (No Telegram Cycle Summary)
+// ✅ Breakout Bot with Reason Support and Enhanced Loop Logging
 import { Hyperliquid } from '../../sdk/index';
 import { analyseData } from '../../shared-utils/analyse-asset';
 import { stateManager } from '../../shared-utils/state-manager';
@@ -60,7 +60,7 @@ export const runBreakoutBot = async (
 
         const signal = evaluateBreakoutSignal(coin, analysis, config);
         if (signal.type === 'HOLD') {
-          skipped.push({ coin, reason: 'HOLD after breakout evaluation' });
+          skipped.push({ coin, reason: signal.reason || 'HOLD after breakout evaluation' });
           continue;
         }
 

@@ -12,7 +12,7 @@ export const evaluateBreakoutSignal = (
 
     if (!bollingerBands?.upper || !bollingerBands?.lower) {
         logDebug(`[Signal] ${asset}: Breakout | Skipped — missing Bollinger Bands`);
-        return { type: 'HOLD', strength: 0 };
+        return { type: 'HOLD', strength: 0, reason: 'Missing Bollinger Bands' };
     }
 
     const upper = bollingerBands.upper;
@@ -23,17 +23,25 @@ export const evaluateBreakoutSignal = (
     const breaksLower = currentPrice <= lower * (1 - breakoutBufferPct);
 
     let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    let reason = 'No breakout condition met';
 
     if (breaksUpper && rsi > config.rsiOverboughtThreshold && macd > 0) {
         type = 'BUY';
+        reason = 'Breaks upper band with RSI and MACD alignment';
     } else if (breaksLower && rsi < config.rsiOversoldThreshold && macd < 0) {
         type = 'SELL';
+        reason = 'Breaks lower band with RSI and MACD alignment';
     } else {
         const nearUpper = currentPrice >= upper * 0.99;
         const nearLower = currentPrice <= lower * 1.01;
 
-        if (nearUpper && rsi > config.rsiOverboughtThreshold - 5) type = 'BUY';
-        else if (nearLower && rsi < config.rsiOversoldThreshold + 5) type = 'SELL';
+        if (nearUpper && rsi > config.rsiOverboughtThreshold - 5) {
+            type = 'BUY';
+            reason = 'Near upper band with RSI near threshold';
+        } else if (nearLower && rsi < config.rsiOversoldThreshold + 5) {
+            type = 'SELL';
+            reason = 'Near lower band with RSI near threshold';
+        }
     }
 
     let breakoutFactor = 0, rsiFactor = 0, macdFactor = 0;
@@ -60,10 +68,10 @@ export const evaluateBreakoutSignal = (
 
     const strength = Math.min(breakoutFactor + rsiFactor + macdFactor, 100);
 
-    const output = `[Signal] ${asset} | Breakout | Type=${type} | Price=${currentPrice.toFixed(2)} | BB:[${lower.toFixed(2)}-${upper.toFixed(2)}] | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`;
+    const output = `[Signal] ${asset} | Breakout | Type=${type} | Price=${currentPrice.toFixed(2)} | BB:[${lower.toFixed(2)}-${upper.toFixed(2)}] | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)} | Reason=${reason}`;
 
     if (type === 'HOLD') logDebug(output);
     else logInfo(output);
 
-    return { type, strength };
+    return { type, strength, reason };
 };

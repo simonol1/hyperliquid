@@ -1,4 +1,4 @@
-// ✅ Reversion Bot with Enhanced Loop Logging (No Telegram Cycle Summary)
+// ✅ Reversion Bot with Enhanced Loop Logging and Skip Reasons
 import { Hyperliquid } from '../../sdk/index';
 import { analyseData } from '../../shared-utils/analyse-asset';
 import { stateManager } from '../../shared-utils/state-manager';
@@ -60,7 +60,7 @@ export const runReversionBot = async (
 
         const signal = evaluateReversionSignal(coin, analysis, config);
         if (signal.type === 'HOLD') {
-          skipped.push({ coin, reason: 'HOLD after reversion evaluation' });
+          skipped.push({ coin, reason: signal.reason || 'HOLD after reversion evaluation' });
           continue;
         }
 
@@ -78,7 +78,7 @@ export const runReversionBot = async (
         await pushSignal(tradeSignal);
       }
 
-      logInfo(`[Reversion Bot] 🟢 Signals sent: ${signals.length} | Active positions: ${realPositions.length}`);
+      logInfo(`[Reversion Bot] 🟢 Signals sent: ${signals.length} | Positions active: ${realPositions.length}`);
       logInfo(`[Reversion Bot] 📝 Skipped=${skipped.length} → Reasons: ${skipped.map(s => `${s.coin}(${s.reason})`).join(', ') || 'None'}`);
 
       for (const pos of realPositions) {

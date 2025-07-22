@@ -8,7 +8,6 @@ export const placeStopLoss = async (
     qty: number,
     entryPx: number,
     stopLossPct: number,
-    vaultAddress: string,
     pxDecimals: number
 ) => {
     const stopPx = isLong ? entryPx * (1 - stopLossPct / 100) : entryPx * (1 + stopLossPct / 100);

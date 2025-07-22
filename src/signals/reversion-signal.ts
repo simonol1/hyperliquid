@@ -7,12 +7,12 @@ export const evaluateReversionSignal = (
     asset: string,
     analysis: Analysis,
     config: BotConfig
-): BaseSignal => {
+): BaseSignal & { reason?: string } => {
     const { currentPrice, slowEma, rsi, macd } = analysis;
 
     if (!slowEma) {
         logDebug(`[Signal] ${asset}: Reversion | Skipped — missing slowEma`);
-        return { type: 'HOLD', strength: 0 };
+        return { type: 'HOLD', strength: 0, reason: 'Missing slow EMA' };
     }
 
     const overrides = config.coinConfig?.[asset];
@@ -22,8 +22,15 @@ export const evaluateReversionSignal = (
     const distanceFromMean = ((currentPrice - slowEma) / slowEma) * 100;
 
     let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-    if (distanceFromMean > threshold) type = 'SELL';
-    else if (distanceFromMean < -threshold) type = 'BUY';
+    let reason = '';
+
+    if (distanceFromMean > threshold) {
+        type = 'SELL';
+    } else if (distanceFromMean < -threshold) {
+        type = 'BUY';
+    } else {
+        reason = `Distance ${distanceFromMean.toFixed(2)}% within threshold ±${threshold}%`;
+    }
 
     let distanceFactor = 0, rsiFactor = 0, macdFactor = 0;
 
@@ -47,7 +54,7 @@ export const evaluateReversionSignal = (
         2
     )}% (T=${threshold}) | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`;
 
-    type === 'HOLD' ? logDebug(output) : logInfo(output);
+    type === 'HOLD' ? logDebug(`${output} | Reason=${reason}`) : logInfo(output);
 
-    return { type, strength };
+    return { type, strength, reason: type === 'HOLD' ? reason : undefined };
 };

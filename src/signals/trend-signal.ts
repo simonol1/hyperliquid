@@ -3,24 +3,34 @@ import type { Analysis } from '../shared-utils/analyse-asset';
 import type { BaseSignal } from '../shared-utils/types';
 import type { BotConfig } from '../bots/config/bot-config';
 
+interface TrendSignal extends BaseSignal {
+  reason?: string;
+}
+
 export const evaluateTrendSignal = (
   asset: string,
   analysis: Analysis,
   config: BotConfig
-): BaseSignal => {
+): TrendSignal => {
   const { fastEma, mediumEma, slowEma, rsi, macd } = analysis;
 
   let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+  let reason = '';
 
   if (!fastEma || !mediumEma || !slowEma) {
-    logDebug(`[Signal] ${asset}: Trend | Skipped — missing EMAs`);
-    return { type, strength: 0 };
+    reason = 'Missing EMA data';
+    logDebug(`[Signal] ${asset}: Trend | Skipped — ${reason}`);
+    return { type, strength: 0, reason };
   }
 
   if (fastEma > mediumEma && mediumEma > slowEma && macd > 0) {
     type = 'BUY';
+    reason = 'EMA uptrend alignment with positive MACD';
   } else if (fastEma < mediumEma && mediumEma < slowEma && macd < 0) {
     type = 'SELL';
+    reason = 'EMA downtrend alignment with negative MACD';
+  } else {
+    reason = 'No trend alignment';
   }
 
   let emaFactor = 0, rsiFactor = 0, macdFactor = 0;
@@ -37,10 +47,10 @@ export const evaluateTrendSignal = (
   }
 
   const strength = Math.min(emaFactor + rsiFactor + macdFactor, 100);
-  const output = `[Signal] ${asset} | Trend | Type=${type} | EMAs: F=${fastEma.toFixed(2)} M=${mediumEma.toFixed(2)} S=${slowEma.toFixed(2)} | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)}`;
+  const output = `[Signal] ${asset} | Trend | Type=${type} | EMAs: F=${fastEma.toFixed(2)} M=${mediumEma.toFixed(2)} S=${slowEma.toFixed(2)} | RSI=${rsi.toFixed(1)} | MACD=${macd.toFixed(2)} | Strength=${strength.toFixed(1)} | Reason=${reason}`;
 
   if (type === 'HOLD') logDebug(output);
   else logInfo(output);
 
-  return { type, strength };
+  return { type, strength, reason };
 };

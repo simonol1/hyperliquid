@@ -1,3 +1,4 @@
+// ✅ Place Order with IOC Priority, Clean Logging
 import { logInfo, logDebug, logError } from '../shared-utils/logger.js';
 import type { Hyperliquid } from '../sdk/index.js';
 
@@ -15,21 +16,20 @@ export const placeOrderSafe = async (
 
     const book = await hyperliquid.info.getL2Book(coin);
     const [asks, bids] = book.levels;
-
     const bestAsk = parseFloat(asks[0].px);
     const bestBid = parseFloat(bids[0].px);
 
     let px = isBuy ? bestAsk * 1.0001 : bestBid * 0.9999;
     px = Math.round(px / tickSize) * tickSize;
 
-    logDebug(`[PlaceOrderSafe] ${coin} ${isBuy ? 'BUY' : 'SELL'} qty=${qty} px=${px} (IOC)`);
+    logDebug(`[PlaceOrderSafe] ${coin} ${isBuy ? 'BUY' : 'SELL'} qty=${qty} px=${px} (${tif})`);
 
     const res = await hyperliquid.exchange.placeOrder({
         coin,
         is_buy: isBuy,
         sz: qty,
         limit_px: px.toFixed(pxDecimals),
-        order_type: { limit: { tif: 'Ioc' } },
+        order_type: { limit: { tif } },
         reduce_only: reduceOnly,
         vaultAddress: subaccountAddress,
     });
@@ -38,26 +38,26 @@ export const placeOrderSafe = async (
     const filled = parseFloat(status?.filled ?? '0');
 
     if (res.status === 'ok' && status?.status !== 'error' && filled > 0) {
-        logInfo(`[PlaceOrderSafe] ✅ IOC filled @ ${px}`);
+        logInfo(`[PlaceOrderSafe] ✅ ${tif} filled @ ${px}`);
         return true;
     }
 
-    logDebug(`[PlaceOrderSafe] IOC not filled → retrying...`);
+    logDebug(`[PlaceOrderSafe] ${tif} not filled → retrying`);
 
-    // retry once
-    const newBook = await hyperliquid.info.getL2Book(coin);
-    const [newAsks, newBids] = newBook.levels;
-    let retryPx = isBuy ? parseFloat(newAsks[0].px) * 1.0002 : parseFloat(newBids[0].px) * 0.9998;
+    // Retry once with more aggressive price
+    const retryBook = await hyperliquid.info.getL2Book(coin);
+    const [retryAsks, retryBids] = retryBook.levels;
+    let retryPx = isBuy ? parseFloat(retryAsks[0].px) * 1.0002 : parseFloat(retryBids[0].px) * 0.9998;
     retryPx = Math.round(retryPx / tickSize) * tickSize;
 
-    logDebug(`[PlaceOrderSafe] Retry px ${retryPx}`);
+    logDebug(`[PlaceOrderSafe] Retry px=${retryPx}`);
 
     const retryRes = await hyperliquid.exchange.placeOrder({
         coin,
         is_buy: isBuy,
         sz: qty,
         limit_px: retryPx.toFixed(pxDecimals),
-        order_type: { limit: { tif: 'Ioc' } },
+        order_type: { limit: { tif } },
         reduce_only: reduceOnly,
         vaultAddress: subaccountAddress,
     });
@@ -66,13 +66,13 @@ export const placeOrderSafe = async (
     const retryFilled = parseFloat(retryStatus?.filled ?? '0');
 
     if (retryRes.status === 'ok' && retryStatus?.status !== 'error' && retryFilled > 0) {
-        logInfo(`[PlaceOrderSafe] ✅ Retry filled @ ${retryPx}`);
+        logInfo(`[PlaceOrderSafe] ✅ Retry ${tif} filled @ ${retryPx}`);
         return true;
     }
 
-    logDebug(`[PlaceOrderSafe] Retry failed → fallback GTC`);
+    logDebug(`[PlaceOrderSafe] Retry ${tif} failed → fallback GTC`);
 
-    const fallbackPx = isBuy ? parseFloat(newAsks[0].px) : parseFloat(newBids[0].px);
+    const fallbackPx = isBuy ? parseFloat(retryAsks[0].px) : parseFloat(retryBids[0].px);
     const fallbackPxTidy = Math.round(fallbackPx / tickSize) * tickSize;
 
     const fallbackRes = await hyperliquid.exchange.placeOrder({
@@ -85,10 +85,8 @@ export const placeOrderSafe = async (
         vaultAddress: subaccountAddress,
     });
 
-    const fallbackAccepted = fallbackRes.status === 'ok';
-
-    if (fallbackAccepted) {
-        logInfo(`[PlaceOrderSafe] 🟢 GTC placed @ ${fallbackPxTidy}`);
+    if (fallbackRes.status === 'ok') {
+        logInfo(`[PlaceOrderSafe] 🟢 Fallback GTC placed @ ${fallbackPxTidy}`);
         return true;
     }
 

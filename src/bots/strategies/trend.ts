@@ -29,7 +29,7 @@ export const runTrendBot = async (
       const realPositions = perpState.assetPositions.filter(p => Math.abs(parseFloat(p.position.szi)) > 0);
 
       const balanceOk = await hasMinimumBalance(hyperliquid, config.subaccountAddress);
-      if (!balanceOk) logInfo(`[Trend Bot] ⚠️ Balance low → exits only.`);
+      logInfo(`[Trend Bot] 💰 Available balance status: ${balanceOk ? 'OK' : 'LOW → exits only'}`);
 
       const analyses = await Promise.all(config.coins.map(async coin => ({
         coin,
@@ -53,13 +53,13 @@ export const runTrendBot = async (
         const volume = analysis.volumeUsd ?? 0;
         const minVol = config.coinConfig?.[coin]?.minVolumeUsd ?? config.minVolumeUsd ?? 0;
         if (volume < minVol) {
-          skipped.push({ coin, reason: `Volume $${volume} < min $${minVol}` });
+          skipped.push({ coin, reason: `Volume $${volume.toFixed(0)} < min $${minVol}` });
           continue;
         }
 
         const signal = evaluateTrendSignal(coin, analysis, config);
         if (signal.type === 'HOLD') {
-          skipped.push({ coin, reason: 'HOLD after trend evaluation' });
+          skipped.push({ coin, reason: signal.reason || 'HOLD after trend evaluation' });
           continue;
         }
 
@@ -77,8 +77,8 @@ export const runTrendBot = async (
         await pushSignal(tradeSignal);
       }
 
-      logInfo(`[Trend Bot] 🟢 Signals sent: ${signals.length} | Positions active: ${realPositions.length}`);
-      logInfo(`[Trend Bot] 📝 Skipped=${skipped.length} → Reasons: ${skipped.map(s => `${s.coin}(${s.reason})`).join(', ') || 'None'}`);
+      logInfo(`[Trend Bot] ✅ Signals=${signals.length} | Active Positions=${realPositions.length}`);
+      logInfo(`[Trend Bot] 📝 Skipped=${skipped.length}: ${skipped.map(s => `${s.coin}(${s.reason})`).join(', ') || 'None'}`);
 
       for (const pos of realPositions) {
         const coin = pos.position.coin;

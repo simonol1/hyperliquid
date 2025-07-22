@@ -12,7 +12,6 @@
     "AVAX-PERP",
     "OP-PERP",
     "ATOM-PERP",
-    "MATIC-PERP",
     "NEAR-PERP"
   ],
   "loopIntervalMs": 60000,

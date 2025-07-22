@@ -2,6 +2,7 @@
 export interface BaseSignal {
     type: 'BUY' | 'SELL' | 'HOLD';
     strength: number;
+    reason?: string;
 }
 
 export interface TradeSignal {

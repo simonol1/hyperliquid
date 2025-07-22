@@ -90,7 +90,6 @@ export const executeEntry = async (
             tidyQty,
             entryPrice,
             dynamicSL,
-            config.subaccountAddress,
             pxDecimals
         );
         await placeTakeProfit(
