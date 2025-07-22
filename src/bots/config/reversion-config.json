@@ -29,7 +29,7 @@
   "riskMapping": {
     "minScore": 50,
     "goldenScore": 80,
-    "minCapitalRiskPct": 0.03,
+    "minCapitalRiskPct": 0.05,
     "maxCapitalRiskPct": 0.10,
     "minLeverage": 3,
     "maxLeverage": 10

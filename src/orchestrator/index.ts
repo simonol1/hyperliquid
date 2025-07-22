@@ -156,8 +156,8 @@ while (true) {
         }
         const pos = calculatePositionSize(signal.strength, walletBalance, cfg.riskMapping);
 
-        if (pos.capitalRiskUsd < 10) {
-            logInfo(`[Orchestrator] ⚠️ Skipping ${signal.coin}: Risk $${pos.capitalRiskUsd.toFixed(2)} < $10 minimum`);
+        if (pos.capitalRiskUsd < 5) {
+            logInfo(`[Orchestrator] ⚠️ Skipping ${signal.coin}: Risk $${pos.capitalRiskUsd.toFixed(2)} < $5 minimum`);
             continue;
         }
 

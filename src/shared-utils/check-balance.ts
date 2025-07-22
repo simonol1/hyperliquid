@@ -1,7 +1,7 @@
 import type { Hyperliquid } from '../sdk/index';
-import { logDebug } from './logger';
+import { logDebug, logInfo } from './logger';
 
-export const MIN_BALANCE_USD = 50
+export const MIN_BALANCE_USD = 20
 
 /**
  * Checks available USD balance for the given vault.
@@ -16,7 +16,7 @@ export const hasMinimumBalance = async (
     const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
     const availableUsd = Number(perpState.withdrawable) || 0;
 
-    logDebug(`[BalanceCheck] Available USD=${availableUsd}, Min Threshold=${MIN_BALANCE_USD}`);
+    logInfo(`[BalanceCheck] Available USD=${availableUsd}, Min Threshold=${MIN_BALANCE_USD}`);
 
     return availableUsd >= MIN_BALANCE_USD;
 };
