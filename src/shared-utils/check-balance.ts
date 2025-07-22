@@ -14,7 +14,8 @@ export const hasMinimumBalance = async (
 ): Promise<boolean> => {
 
     const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
-    const availableUsd = Number(perpState.withdrawable) || 0;
+    logInfo(`perpState: ${perpState}`)
+    const availableUsd = Number(perpState) || 0;
 
     logInfo(`[BalanceCheck] Available USD=${availableUsd}, Min Threshold=${MIN_BALANCE_USD}`);
 
