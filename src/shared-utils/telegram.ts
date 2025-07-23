@@ -5,6 +5,10 @@ import https from 'https'; // Import Node.js 'https' module
 import { TradeSignal } from "./types.js"; // Ensure this import is present
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
+export const monitorChatId = process.env.TELEGRAM_MONITOR_CHAT_ID;
+export const summaryChatId = process.env.TELEGRAM_SUMMARY_CHAT_ID;
+export const errorsChatId = process.env.TELEGRAM_ERROR_CHAT_ID;
+
 
 // Function to escape MarkdownV2 characters for literal use
 // This function is crucial and will be applied to all dynamic parts.

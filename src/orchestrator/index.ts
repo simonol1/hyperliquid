@@ -11,10 +11,9 @@ import { Hyperliquid } from '../sdk/index.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { logInfo, logError, logDebug, logWarn } from '../shared-utils/logger.js';
 import { isBotStatus, isTradeSignal, TradeSignal } from '../shared-utils/types.js';
-import { scheduleTwiceDailyReport } from '../shared-utils/reporter.js';
-import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
-import { sendTelegramMessage, buildTelegramCycleSummary } from '../shared-utils/telegram';
+import { scheduleGlobalHeartbeat } from '../shared-utils/scheduler.js';
 import { logCycleSummary } from '../shared-utils/summary-logger.js';
+import { schedulePnLSummaryEvery4Hours } from '../shared-utils/reporter.js';
 
 type BotKey = 'trend' | 'breakout' | 'reversion';
 
@@ -78,8 +77,8 @@ const BOTS_EXPECTED: BotKey[] = ['trend', 'breakout', 'reversion'];
 
 logInfo(`[Orchestrator] ✅ Ready with vault ${subaccountAddress}`);
 
-scheduleTwiceDailyReport();
-scheduleHeartbeat('Orchestrator', () => 'Running fine', 1);
+schedulePnLSummaryEvery4Hours();
+scheduleGlobalHeartbeat();
 
 while (true) {
     logDebug(`[Orchestrator] Polling signals...`);
@@ -139,11 +138,6 @@ while (true) {
     const skipped = strongestSignals.filter(s => !ranked.includes(s)).map(s => ({ coin: s.coin, reason: 'not top ranked' }));
 
     logCycleSummary(ranked, skipped, openCount);
-
-    if (ranked.some(sig => sig.strength >= 90) && process.env.TELEGRAM_MONITOR_CHAT_ID) {
-        const summary = buildTelegramCycleSummary(ranked, skipped, openCount);
-        await sendTelegramMessage(summary, process.env.TELEGRAM_MONITOR_CHAT_ID);
-    }
 
     logDebug(`[Orchestrator] Executing ${ranked.length} trades → ${ranked.map(s => `${s.coin}(${s.strength.toFixed(1)})`).join(', ')}`);
 

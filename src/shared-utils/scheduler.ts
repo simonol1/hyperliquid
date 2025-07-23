@@ -1,26 +1,9 @@
 // ✅ File: reporter/scheduler.ts
-import { sendTelegramMessage } from '../shared-utils/telegram.js';
-import { logInfo, logWarn } from '../shared-utils/logger.js';
+import { sendTelegramMessage, monitorChatId } from '../shared-utils/telegram.js';
+import { logError, logInfo, logWarn } from '../shared-utils/logger.js';
 import cron from 'node-cron';
 import { stateManager } from '../shared-utils/state-manager.js';
-
-// Heartbeat to Monitoring Channel
-export const scheduleHeartbeat = (
-    botName: string,
-    getStatus: () => string | Promise<string>,
-    intervalHours: number = 2
-) => {
-    cron.schedule(`0 */${intervalHours} * * *`, async () => {
-        const status = await getStatus();
-        const chatId = process.env.TELEGRAM_MONITOR_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
-        if (!chatId) throw new Error("Missing Telegram Chat ID");
-
-        await sendTelegramMessage(`✅ *${botName} heartbeat*\n${status}`, chatId);
-
-        logWarn(`[Heartbeat] Sent for ${botName}`);
-    });
-    logWarn(`Heartbeat scheduled every ${intervalHours} hour(s)`);
-};
+import { redis } from './redis-client.js';
 
 // Daily Loss Reset (Local Only)
 export const scheduleDailyReset = () => {
@@ -29,4 +12,29 @@ export const scheduleDailyReset = () => {
         logWarn('[RiskManager] ✅ Daily loss reset at 5pm.');
     });
     logWarn('Daily loss reset scheduled at 17:00 server time.');
+};
+
+// Global hourly heartbeat
+export const scheduleGlobalHeartbeat = () => {
+    cron.schedule('0 * * * *', async () => {
+        if (!monitorChatId) {
+            logError(`[Heartbeat] ❌ Missing TELEGRAM_MONITOR_CHAT_ID. Cannot send global heartbeat`);
+            return;
+        }
+
+        const botStatus = await Promise.all(
+            ['trend', 'breakout', 'reversion'].map(bot => redis.get(`status:${bot}`))
+        );
+
+        const message = [
+            `✅ *Global Health Check*`,
+            ...['trend', 'breakout', 'reversion'].map((bot, i) => `${bot}: ${botStatus[i] || '❓ No data'}`),
+            `🕐 Time: ${new Date().toLocaleString()}`
+        ].join('\n');
+
+        await sendTelegramMessage(message, monitorChatId);
+        logInfo(`[Heartbeat] ✅ Sent global heartbeat`);
+    });
+
+    logInfo(`[Heartbeat] ⏰ Global heartbeat scheduled hourly`);
 };

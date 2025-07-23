@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
 import type { Analysis } from './analyse-asset';
+import { errorsChatId, sendTelegramMessage } from './telegram';
 
 // const LOG_PREFIX = `[${process.env.BOT_NAME}]`;
 
@@ -32,7 +33,13 @@ export const logger = pino(
 export const logInfo = (msg: string) => logger.info(`${msg}`);
 export const logDebug = (msg: string) => logger.debug(`${msg}`);
 export const logWarn = (msg: string | unknown) => logger.warn(` ⚠️ ${msg}`);
-export const logError = (msg: string | unknown) => logger.error(`❌ ${msg}`);
+
+export const logError = (msg: string) => {
+  console.error(`[ERROR] ${msg}`);
+  if (errorsChatId) {
+    sendTelegramMessage(`❌ *Error Logged*\n${msg}`, errorsChatId).catch(() => { });
+  }
+};
 
 export const logTrade = ({
   asset,

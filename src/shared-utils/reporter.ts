@@ -1,5 +1,5 @@
 // ✅ File: reporter/reporter.ts (Updated with Active Trades Summary)
-import { sendTelegramMessage } from '../shared-utils/telegram.js';
+import { sendTelegramMessage, summaryChatId } from '../shared-utils/telegram.js';
 import { logInfo, logError } from '../shared-utils/logger.js';
 import { redis } from '../shared-utils/redis-client.js';
 import cron from 'node-cron';
@@ -57,20 +57,18 @@ const buildPnLSummary = (tradesByBot: Record<string, any[]>, activeTrades: any[]
     return summaryLines.join('\n');
 };
 
-export const scheduleTwiceDailyReport = () => {
-    // 7am and 7pm AEST -> 9pm and 9am UTC
-    cron.schedule('0 21,9 * * *', async () => {
-        logInfo(`📢 Starting Twice Daily PnL Report...`);
-        const chatId = process.env.TELEGRAM_TRADE_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
-        if (!chatId) {
-            logError("❌ Missing Telegram Chat ID - cannot send PnL report");
+export const schedulePnLSummaryEvery4Hours = () => {
+    cron.schedule('0 */4 * * *', async () => {
+        logInfo(`📢 Starting 4-hour PnL Summary...`);
+        if (!summaryChatId) {
+            logError("❌ Missing Telegram summary Chat ID - cannot send PnL report");
             return;
         }
 
         const tradesByBot: Record<string, any[]> = {};
         for (const bot of bots) {
             try {
-                const trades = await fetchClosedTrades(bot);
+                const trades = await fetchClosedTrades(bot, Date.now() - 4 * 60 * 60 * 1000);
                 tradesByBot[bot] = trades;
             } catch (err) {
                 logError(`[Reporter] ❌ Error fetching trades for ${bot}: ${err}`);
@@ -80,8 +78,10 @@ export const scheduleTwiceDailyReport = () => {
 
         const activeTrades = await fetchActiveTrades();
         const summary = buildPnLSummary(tradesByBot, activeTrades);
-        await sendTelegramMessage(summary, chatId);
-        logInfo(`[Reporter] ✅ Sent combined PnL and Active Trades summary`);
+        await sendTelegramMessage(summary, summaryChatId);
+        logInfo(`[Reporter] ✅ Sent 4-hour PnL and Active Trades summary`);
     });
-    logInfo(`🕖 Twice daily PnL report scheduled for 7am and 7pm AEST`);
+
+    logInfo(`🕓 4-hourly PnL report scheduled`);
 };
+
