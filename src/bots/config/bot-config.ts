@@ -1,5 +1,5 @@
 export interface RiskMapping {
-  minScore: number;             // minimum signal score to consider
+  minStrength: number;     // minimum signal score to consider
   goldenScore: number;          // score for max risk / max leverage
   minCapitalRiskPct: number;    // min % of portfolio to risk per trade
   maxCapitalRiskPct: number;    // max % of portfolio to risk per trade

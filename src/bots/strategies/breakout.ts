@@ -61,8 +61,15 @@ export const runBreakoutBot = async (
         }
 
         const signal = evaluateBreakoutSignal(coin, analysis, config);
+
         if (signal.type === 'HOLD') {
           skipped.push({ coin, reason: signal.reason || 'HOLD after breakout evaluation' });
+          continue;
+        }
+
+        const minStrength = config.riskMapping?.minStrength ?? 0;
+        if (signal.strength < minStrength) {
+          skipped.push({ coin, reason: `Strength ${signal.strength.toFixed(1)} < min ${minStrength}` });
           continue;
         }
 

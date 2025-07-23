@@ -32,7 +32,7 @@
   "stopLossPct": 2,
   "minVolumeUsd": 50000,
   "riskMapping": {
-    "minScore": 60,
+    "minStrength": 60,
     "goldenScore": 90,
     "minCapitalRiskPct": 0.02,
     "maxCapitalRiskPct": 0.10,

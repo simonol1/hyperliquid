@@ -1,5 +1,5 @@
 export interface RiskMapping {
-    minScore: number;
+    minStrength: number;
     goldenScore: number;
     minCapitalRiskPct: number;
     maxCapitalRiskPct: number;
@@ -20,8 +20,8 @@ export const calculatePositionSize = (
 ): PositionSizingResult => {
 
     const score = Math.min(100, Math.max(0, signalStrength));
-    const scoreRange = Math.max(1, risk.goldenScore - risk.minScore);
-    const effectiveScore = Math.max(0, score - risk.minScore);
+    const scoreRange = Math.max(1, risk.goldenScore - risk.minStrength);
+    const effectiveScore = Math.max(0, score - risk.minStrength);
 
     const capitalRiskPct = risk.minCapitalRiskPct +
         (effectiveScore / scoreRange) * (risk.maxCapitalRiskPct - risk.minCapitalRiskPct);

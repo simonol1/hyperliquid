@@ -35,7 +35,7 @@
   ],
   "runnerPct": 0.15,
   "riskMapping": {
-    "minScore": 50,
+    "minStrength": 50,
     "goldenScore": 70,
     "minCapitalRiskPct": 0.05,
     "maxCapitalRiskPct": 0.1,
