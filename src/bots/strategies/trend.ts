@@ -12,6 +12,8 @@ import { hasMinimumBalance } from '../../shared-utils/check-balance';
 import { buildVirtualPositionFromLive } from '../../shared-utils/virtual-position';
 import { pushSignal } from '../../shared-utils/push-signal';
 import { SkippedReason } from '../../shared-utils/telegram';
+import { updateTrackedPosition } from '../../shared-utils/tracked-position';
+import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
 
 export const runTrendBot = async (
   hyperliquid: Hyperliquid,
@@ -91,7 +93,9 @@ export const runTrendBot = async (
         const analysis = await analyseData(hyperliquid, coin, config);
         if (!analysis) continue;
 
-        const exitIntent = evaluateExit(virtualPos, analysis, config);
+        await updateTrailingHigh(virtualPos, analysis.currentPrice, updateTrackedPosition, coin);
+
+        const exitIntent = await evaluateExit(virtualPos, analysis, config, coin);
         if (exitIntent) {
           await executeExit(hyperliquid, config.subaccountAddress, exitIntent, metaMap.get(coin));
           stateManager.clearHighWatermark(coin);

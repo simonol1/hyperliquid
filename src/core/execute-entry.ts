@@ -1,7 +1,7 @@
 import { logInfo } from '../shared-utils/logger.js';
 import { placeOrderSafe } from '../orders/place-order-safe.js';
 import { placeStopLoss } from '../orders/place-stop-loss.js';
-import { placeTakeProfit } from '../orders/place-take-profit.js';
+import { placeTakeProfits } from '../orders/place-take-profit.js';
 import type { Hyperliquid } from '../sdk/index.js';
 import type { TradeSignal } from '../shared-utils/types.js';
 import type { CoinMeta } from '../shared-utils/coin-meta.js';
@@ -70,16 +70,6 @@ export const executeEntry = async (
             ? entryPrice * (1 - config.trailingStopPct / 100)
             : entryPrice * (1 + config.trailingStopPct / 100);
 
-        await setTrackedPosition(coin, {
-            qty: tidyQty,
-            leverage: risk.leverage,
-            entryPrice,
-            isLong: signal.side === 'LONG',
-            takeProfitTarget,
-            trailingStopTarget,
-            highestPrice: entryPrice,
-            openedAt: Date.now(),
-        });
 
         logInfo(`[ExecuteEntry] ✅ Placed ${coin} qty=${tidyQty}`);
 
@@ -92,15 +82,32 @@ export const executeEntry = async (
             dynamicSL,
             pxDecimals
         );
-        await placeTakeProfit(
+
+        await placeTakeProfits(
             hyperliquid,
             coin,
             isLong,
             tidyQty,
             entryPrice,
-            dynamicTP,
+            [dynamicTP * 0.5, dynamicTP, dynamicTP * 1.5], // tiered TP levels
             config.subaccountAddress,
             pxDecimals
         );
+
+        await setTrackedPosition(coin, {
+            qty: tidyQty,
+            leverage: risk.leverage,
+            entryPrice,
+            isLong: signal.side === 'LONG',
+            takeProfitLevels: [dynamicTP * 0.5, dynamicTP, dynamicTP * 1.5],
+            takeProfitHit: [],
+            breakevenTriggered: false,
+            takeProfitTarget: entryPrice * (1 + dynamicTP / 100),
+            trailingStopTarget,
+            trailingStopActive: true,
+            trailingStopPct: config.trailingStopPct,
+            highestPrice: entryPrice,
+            openedAt: Date.now(),
+        });
     }
 };

@@ -1,7 +1,9 @@
+// --- trailing-stop-helpers.ts ---
+
 import { logInfo } from './logger.js';
-import type { Position } from '../core/evaluate-exit.js';
 import type { Analysis } from './analyse-asset.js';
 import type { BotConfig } from '../bots/config/bot-config.js';
+import { Position } from './tracked-position.js';
 
 export const checkTrailingStop = (
     position: Position,
@@ -22,7 +24,6 @@ export const checkTrailingStop = (
         ? currentPrice <= trailingStop
         : currentPrice >= trailingStop;
 
-    // Log only when hit or within 1% of trailing stop
     const distancePct = isLong
         ? ((currentPrice - trailingStop) / trailingStop) * 100
         : ((trailingStop - currentPrice) / trailingStop) * 100;
@@ -46,4 +47,20 @@ export const checkTakeProfit = (
     return isLong
         ? currentPrice >= takeProfitTarget
         : currentPrice <= takeProfitTarget;
+};
+
+export const updateTrailingHigh = async (
+    position: Position,
+    currentPrice: number,
+    updateTrackedPosition: (coin: string, updates: Partial<Position>) => Promise<void>,
+    coin: string
+) => {
+    const { isLong, highestPrice } = position;
+    const newHigh = isLong
+        ? Math.max(highestPrice, currentPrice)
+        : Math.min(highestPrice, currentPrice);
+
+    if (newHigh !== highestPrice) {
+        await updateTrackedPosition(coin, { highestPrice: newHigh });
+    }
 };

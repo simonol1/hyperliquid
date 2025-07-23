@@ -13,6 +13,8 @@ import { hasMinimumBalance } from '../../shared-utils/check-balance';
 import { buildVirtualPositionFromLive } from '../../shared-utils/virtual-position';
 import { SkippedReason } from '../../shared-utils/telegram';
 import { TradeSignal } from '../../shared-utils/types';
+import { updateTrackedPosition } from '../../shared-utils/tracked-position';
+import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
 
 export const runBreakoutBot = async (
   hyperliquid: Hyperliquid,
@@ -91,9 +93,12 @@ export const runBreakoutBot = async (
         const analysis = await analyseData(hyperliquid, coin, config);
         if (!analysis) continue;
 
-        const exit = evaluateExit(virtualPos, analysis, config);
-        if (exit) {
-          await executeExit(hyperliquid, config.subaccountAddress, exit, metaMap.get(coin));
+        await updateTrailingHigh(virtualPos, analysis.currentPrice, updateTrackedPosition, coin);
+
+        const exitIntent = await evaluateExit(virtualPos, analysis, config, coin);
+
+        if (exitIntent) {
+          await executeExit(hyperliquid, config.subaccountAddress, exitIntent, metaMap.get(coin));
           stateManager.clearHighWatermark(coin);
           stateManager.setCooldown(coin, 5 * 60 * 1000);
         }
