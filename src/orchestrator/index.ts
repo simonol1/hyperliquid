@@ -125,7 +125,7 @@ while (true) {
     const filteredSignals = tradeSignals.filter(sig => !activeCoins.has(sig.coin));
 
     const openCount = activeCoins.size;
-    const slots = Math.max(0, parseInt(process.env.MAX_GLOBAL_CONCURRENT_TRADES || '6') - openCount);
+    const slots = Math.max(0, parseInt(process.env.MAX_GLOBAL_CONCURRENT_TRADES || '10') - openCount);
 
     // ✅ Take the strongest filtered signals
     const strongestSignals = Array.from(

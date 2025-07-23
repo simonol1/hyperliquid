@@ -24,7 +24,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - MAX_GLOBAL_CONCURRENT_TRADES=6
+      - MAX_GLOBAL_CONCURRENT_TRADES=10
       - NODE_OPTIONS=--dns-result-order=ipv4first # <--- ADD THIS LINE
     command: ["node", "dist/orchestrator.mjs"]
     depends_on:
