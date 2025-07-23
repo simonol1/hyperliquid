@@ -116,7 +116,7 @@ while (true) {
     }
     // ✅ Active Coin Filtering
     const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
-    const walletBalance = parseFloat(perpState.withdrawable);
+    const walletBalance = parseFloat(perpState.marginSummary.accountValue);
 
     const openPositions = perpState.assetPositions.filter(p => Math.abs(parseFloat(p.position.szi)) > 0).map(p => p.position.coin);
     const openOrders = (await hyperliquid.info.getUserOpenOrders(subaccountAddress)).map(o => o.coin);
