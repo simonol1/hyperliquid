@@ -28,6 +28,12 @@
   "minVolumeUsd": 50000,
   "trailingStopPct": 0.5,
   "stopLossPct": 3,
+  "takeProfitPercents": [
+    2,
+    4,
+    8
+  ],
+  "runnerPct": 0.15,
   "riskMapping": {
     "minScore": 50,
     "goldenScore": 70,

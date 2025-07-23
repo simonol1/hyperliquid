@@ -20,7 +20,7 @@ export const executeEntry = async (
     const { coin, pxDecimals, szDecimals } = coinMeta;
     const rawQty = (risk.capitalRiskUsd * risk.leverage) / signal.entryPrice;
 
-    const isLong = signal.side === "LONG"
+    const isLong = signal.side === 'LONG';
 
     const { canTrade, qty: safeQty } = await checkRiskGuards(
         hyperliquid,
@@ -51,63 +51,60 @@ export const executeEntry = async (
         pxDecimals
     );
 
-    if (ok) {
-        const { atr, entryPrice, strength } = signal
+    if (!ok) return;
 
-        // --- Dynamic SL based on ATR ---
-        const atrPct = atr ? (atr / entryPrice) * 100 : config.stopLossPct;
-        const dynamicSL = Math.max(atrPct * 1.2, config.stopLossPct); // safe floor
+    const { atr, entryPrice, strength } = signal;
 
-        // --- Dynamic TP based on Signal Strength ---
-        const rrMultiplier = Math.min(2.0, 1 + (strength - config.riskMapping.minScore) / 50); // 1.0 to 2.0
-        const dynamicTP = dynamicSL * rrMultiplier;
+    // --- Stop Loss ---
+    const atrPct = atr ? (atr / entryPrice) * 100 : config.stopLossPct;
+    const stopLossPct = Math.max(atrPct * 1.2, config.stopLossPct);
 
-        const takeProfitTarget = isLong
-            ? entryPrice * (1 + dynamicTP / 100)
-            : entryPrice * (1 - dynamicTP / 100);
+    // --- Trailing Stop ---
+    const trailingStopTarget = isLong
+        ? entryPrice * (1 - config.trailingStopPct / 100)
+        : entryPrice * (1 + config.trailingStopPct / 100);
 
-        const trailingStopTarget = isLong
-            ? entryPrice * (1 - config.trailingStopPct / 100)
-            : entryPrice * (1 + config.trailingStopPct / 100);
+    // --- Take Profit Levels ---
+    const tpPercents = config.takeProfitPercents || [2, 4, 6];
 
+    await placeStopLoss(
+        hyperliquid,
+        coin,
+        isLong,
+        tidyQty,
+        entryPrice,
+        stopLossPct,
+        pxDecimals
+    );
 
-        logInfo(`[ExecuteEntry] ✅ Placed ${coin} qty=${tidyQty}`);
+    await placeTakeProfits(
+        hyperliquid,
+        coin,
+        isLong,
+        tidyQty,
+        entryPrice,
+        tpPercents,
+        config.subaccountAddress,
+        pxDecimals
+    );
 
-        await placeStopLoss(
-            hyperliquid,
-            coin,
-            isLong,
-            tidyQty,
-            entryPrice,
-            dynamicSL,
-            pxDecimals
-        );
+    await setTrackedPosition(coin, {
+        qty: tidyQty,
+        leverage: risk.leverage,
+        entryPrice,
+        isLong,
+        takeProfitLevels: tpPercents,
+        takeProfitHit: [],
+        breakevenTriggered: false,
+        takeProfitTarget: isLong
+            ? entryPrice * (1 + tpPercents[tpPercents.length - 1] / 100)
+            : entryPrice * (1 - tpPercents[tpPercents.length - 1] / 100),
+        trailingStopTarget,
+        trailingStopActive: true,
+        trailingStopPct: config.trailingStopPct,
+        highestPrice: entryPrice,
+        openedAt: Date.now(),
+    });
 
-        await placeTakeProfits(
-            hyperliquid,
-            coin,
-            isLong,
-            tidyQty,
-            entryPrice,
-            [dynamicTP * 0.5, dynamicTP, dynamicTP * 1.5], // tiered TP levels
-            config.subaccountAddress,
-            pxDecimals
-        );
-
-        await setTrackedPosition(coin, {
-            qty: tidyQty,
-            leverage: risk.leverage,
-            entryPrice,
-            isLong: signal.side === 'LONG',
-            takeProfitLevels: [dynamicTP * 0.5, dynamicTP, dynamicTP * 1.5],
-            takeProfitHit: [],
-            breakevenTriggered: false,
-            takeProfitTarget: entryPrice * (1 + dynamicTP / 100),
-            trailingStopTarget,
-            trailingStopActive: true,
-            trailingStopPct: config.trailingStopPct,
-            highestPrice: entryPrice,
-            openedAt: Date.now(),
-        });
-    }
+    logInfo(`[ExecuteEntry] ✅ Placed ${coin} qty=${tidyQty}`);
 };
