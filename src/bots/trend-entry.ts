@@ -11,7 +11,6 @@ import { Hyperliquid } from '../sdk/index'
 import { logInfo, logWarn, logError } from '../shared-utils/logger.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runTrendBot } from './strategies/trend.js';
-import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
 // Import the Redis client
 import { redis } from '../shared-utils/redis-client.js';
 
@@ -79,5 +78,3 @@ logInfo(`🚀 Starting Trend Bot`);
 
 // Run the main bot logic
 await runTrendBot(hyperliquid, trendConfig, metaMap);
-
-scheduleHeartbeat(`Trend Bot`, () => `Running`, 1);

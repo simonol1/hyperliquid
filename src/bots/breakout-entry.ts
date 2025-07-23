@@ -11,7 +11,6 @@ import { Hyperliquid } from '../sdk/index.js';
 import { logInfo, logError, logWarn } from '../shared-utils/logger.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runBreakoutBot } from './strategies/breakout.js';
-import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
 import { redis } from '../shared-utils/redis-client.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
@@ -75,5 +74,3 @@ const breakoutConfig = JSON.parse(fs.readFileSync(path.join(CONFIG_BASE, 'breako
 logInfo(`🚀 Starting Breakout Bot`);
 
 await runBreakoutBot(hyperliquid, breakoutConfig, metaMap);
-
-scheduleHeartbeat(`Breakout Bot`, () => `Running`, 1);

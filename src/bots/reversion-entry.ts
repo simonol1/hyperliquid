@@ -11,7 +11,6 @@ import { Hyperliquid } from '../sdk/index.js';
 import { logInfo, logError, logWarn } from '../shared-utils/logger.js';
 import { buildMetaMap } from '../shared-utils/coin-meta.js';
 import { runReversionBot } from './strategies/reversion.js';
-import { scheduleHeartbeat } from '../shared-utils/scheduler.js';
 import { redis } from '../shared-utils/redis-client.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET;
@@ -76,5 +75,3 @@ const reversionConfig = JSON.parse(fs.readFileSync(path.join(CONFIG_BASE, 'rever
 logInfo(`🚀 Starting Reversion Bot`);
 
 await runReversionBot(hyperliquid, reversionConfig, metaMap);
-
-scheduleHeartbeat(`Reversion Bot`, () => `Running`, 1);
