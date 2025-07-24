@@ -66,6 +66,7 @@ export const executeEntry = async (
 
     // --- Take Profit Levels ---
     const tpPercents = config.takeProfitPercents || [2, 4, 6];
+    const runnerPct = config.runnerPct
 
     await placeStopLoss(
         hyperliquid,
@@ -84,7 +85,7 @@ export const executeEntry = async (
         tidyQty,
         entryPrice,
         tpPercents,
-        config.subaccountAddress,
+        runnerPct,
         pxDecimals
     );
 

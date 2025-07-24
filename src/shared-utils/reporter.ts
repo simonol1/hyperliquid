@@ -1,5 +1,5 @@
 // ✅ File: reporter/reporter.ts (Updated with Active Trades Summary)
-import { sendTelegramMessage, summaryChatId } from '../shared-utils/telegram.js';
+import { sendTelegramMessage, summaryChatId, escapeMarkdown } from '../shared-utils/telegram.js';
 import { logInfo, logError } from '../shared-utils/logger.js';
 import { redis } from '../shared-utils/redis-client.js';
 import cron from 'node-cron';
@@ -39,16 +39,16 @@ const buildPnLSummary = (tradesByBot: Record<string, any[]>, activeTrades: any[]
         const pnl = trades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
         const winRate = total ? ((wins / total) * 100).toFixed(1) : '0';
 
-        summaryLines.push(`\n*${bot.toUpperCase()}*`);
-        summaryLines.push(`Closed: ${total} | Wins: ${wins} | Losses: ${losses}`);
-        summaryLines.push(`Win Rate: ${winRate}%`);
-        summaryLines.push(`Net PnL: $${pnl.toFixed(2)}`);
+        summaryLines.push(`\n*${escapeMarkdown(bot.toUpperCase())}*`);
+        summaryLines.push(`Closed: ${escapeMarkdown(total.toString())} | Wins: ${escapeMarkdown(wins.toString())} | Losses: ${escapeMarkdown(losses.toString())}`);
+        summaryLines.push(`Win Rate: ${escapeMarkdown(winRate)}%`);
+        summaryLines.push(`Net PnL: $${escapeMarkdown(pnl.toFixed(2))}`);
     }
 
     if (activeTrades.length) {
-        summaryLines.push(`\n🟢 *Active Trades* (${activeTrades.length}):`);
+        summaryLines.push(`\n🟢 *Active Trades* (${escapeMarkdown(activeTrades.length.toString())}):`);
         for (const trade of activeTrades) {
-            summaryLines.push(`${trade.bot.toUpperCase()} ${trade.coin} ${trade.side} @ ${trade.entryPrice.toFixed(2)} | Open PnL: $${(trade.pnl ?? 0).toFixed(2)}`);
+            summaryLines.push(`${escapeMarkdown(trade.bot.toUpperCase())} ${escapeMarkdown(trade.coin)} ${escapeMarkdown(trade.side)} @ ${escapeMarkdown(trade.entryPrice.toFixed(2))} | Open PnL: $${escapeMarkdown((trade.pnl ?? 0).toFixed(2))}`);
         }
     } else {
         summaryLines.push(`\n⚪ *No Active Trades*`);
@@ -56,6 +56,7 @@ const buildPnLSummary = (tradesByBot: Record<string, any[]>, activeTrades: any[]
 
     return summaryLines.join('\n');
 };
+
 
 export const schedulePnLSummaryEvery4Hours = () => {
     cron.schedule('0 */4 * * *', async () => {

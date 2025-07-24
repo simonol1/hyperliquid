@@ -1,5 +1,6 @@
 import { logInfo, logError } from '../shared-utils/logger.js';
 import type { Hyperliquid, OrderRequest } from '../sdk/index.js';
+import { retryWithBackoff } from '../shared-utils/retry-order.js';
 
 export const placeStopLoss = async (
     hyperliquid: Hyperliquid,
@@ -10,7 +11,9 @@ export const placeStopLoss = async (
     stopLossPct: number,
     pxDecimals: number
 ) => {
-    const stopPx = isLong ? entryPx * (1 - stopLossPct / 100) : entryPx * (1 + stopLossPct / 100);
+    const stopPx = isLong
+        ? entryPx * (1 - stopLossPct / 100)
+        : entryPx * (1 + stopLossPct / 100);
     const stopPxTidy = Number(stopPx.toFixed(pxDecimals));
 
     const triggerOrder: OrderRequest = {
@@ -18,14 +21,22 @@ export const placeStopLoss = async (
         is_buy: !isLong,
         sz: qty,
         limit_px: stopPxTidy,
-        order_type: { trigger: { triggerPx: stopPxTidy, isMarket: true, tpsl: 'sl' } },
+        order_type: {
+            trigger: { triggerPx: stopPxTidy, isMarket: true, tpsl: 'sl' as const },
+        },
         reduce_only: true,
         grouping: 'positionTpsl',
     };
 
-    const res = await hyperliquid.exchange.placeOrder(triggerOrder);
+    const res = await retryWithBackoff(
+        () => hyperliquid.exchange.placeOrder(triggerOrder),
+        3,
+        1000,
+        2,
+        `Stop Loss @ ${stopPxTidy}`
+    );
 
-    res.status === 'ok'
+    res?.status === 'ok'
         ? logInfo(`[StopLoss] 🛑 Placed ${coin} SL @ ${stopPxTidy}`)
         : logError(`[StopLoss] ❌ Failed ${coin}`);
 };

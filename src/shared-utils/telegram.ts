@@ -1,19 +1,28 @@
 import axios from 'axios';
 import { logError, logDebug } from './logger.js';
-import http from 'http'; // Import Node.js 'http' module
-import https from 'https'; // Import Node.js 'https' module
-import { TradeSignal } from "./types.js"; // Ensure this import is present
+import http from 'http';
+import https from 'https';
+import { TradeSignal } from './types.js';
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
 export const monitorChatId = process.env.TELEGRAM_MONITOR_CHAT_ID;
 export const summaryChatId = process.env.TELEGRAM_SUMMARY_CHAT_ID;
 export const errorsChatId = process.env.TELEGRAM_ERROR_CHAT_ID;
 
+/**
+ * Escapes all characters required by Telegram MarkdownV2.
+ * Full list: _ * [ ] ( ) ~ ` > # + - = | { } . !
+ */
+export const escapeMarkdown = (text: string): string => {
+    return text.replace(/([_*\[\]()~`>#+=|{}.!\\-])/g, '\\$1');
+};
 
-// Function to escape MarkdownV2 characters for literal use
-// This function is crucial and will be applied to all dynamic parts.
-const escapeMarkdown = (text: string) =>
-    text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
+/**
+ * Optional: Wrap content in Telegram code block (```...```) for raw formatting.
+ */
+const wrapCodeBlock = (text: string): string => {
+    return ['```', text, '```'].join('\n');
+};
 
 export const sendTelegramMessage = async (text: string, chatId: string): Promise<void> => {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -25,9 +34,7 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
     const url = `${TELEGRAM_API_BASE}${botToken}/sendMessage`;
     const payload = {
         chat_id: chatId,
-        // The 'text' argument is expected to already be correctly formatted MarkdownV2.
-        // All dynamic content within 'text' should have been escaped by buildTelegramCycleSummary.
-        text: text,
+        text,
         parse_mode: 'MarkdownV2',
     };
 
@@ -35,9 +42,9 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
         logDebug(`[Telegram] Attempting to send message to ${chatId}. URL: ${url}. Payload: ${JSON.stringify(payload)}`);
 
         await axios.post(url, payload, {
-            timeout: 30000, // Keep 30-second timeout
-            httpAgent: new http.Agent({ family: 4 }), // Force IPv4 for HTTP requests using imported 'http'
-            httpsAgent: new https.Agent({ family: 4 }), // Force IPv4 for HTTPS requests using imported 'https'
+            timeout: 30000,
+            httpAgent: new http.Agent({ family: 4 }),
+            httpsAgent: new https.Agent({ family: 4 }),
         });
 
         logDebug(`[Telegram] Message sent successfully to ${chatId}`);
@@ -54,6 +61,7 @@ export const sendTelegramMessage = async (text: string, chatId: string): Promise
                 `Headers: ${JSON.stringify(err.config?.headers)}, ` +
                 `Timeout: ${err.config?.timeout}, Code: ${err.code}`);
         }
+
         if (err.stack) {
             logError(`[Telegram] Error Stack: ${err.stack}`);
         }
@@ -69,25 +77,34 @@ export type SkippedReason = {
     reason: string;
 };
 
-export const buildTelegramCycleSummary = (signals: SignalSummary[], skipped: SkippedReason[], active: number): string => {
+/**
+ * Generates a clean, readable cycle summary message formatted for Telegram MarkdownV2.
+ */
+export const buildTelegramCycleSummary = (
+    signals: SignalSummary[],
+    skipped: SkippedReason[],
+    active: number
+): string => {
     const top = signals.sort((a, b) => b.strength - a.strength)[0];
 
     const isGolden = (strength: number) => strength >= 90;
-    const star = (strength: number) => isGolden(strength) ? '⭐️ ' : '';
+    const star = (strength: number) => (isGolden(strength) ? '⭐️ ' : '');
 
     const topText = top
         ? `${star(top.strength)}${escapeMarkdown(top.coin)} ${escapeMarkdown(top.side)} *${escapeMarkdown(top.strength.toFixed(1))}*`
         : 'None';
 
-    const skippedText = skipped.length
-        ? skipped.map(s => escapeMarkdown(s.coin)).join(escapeMarkdown(', '))
+    const skippedCoins = skipped.length
+        ? skipped.map(s => escapeMarkdown(s.coin)).join(', ')
         : 'None';
 
-    return [
+    const summaryLines = [
         `*Cycle Summary*`,
-        `Signals: ${signals.length}`,
+        `Signals: *${escapeMarkdown(signals.length.toString())}*`,
         `Top: ${topText}`,
-        `Skipped: ${skipped.length} ${escapeMarkdown('-')} ${skippedText}`,
-        `Active: ${active}`
-    ].join('\n');
+        `Skipped: *${escapeMarkdown(skipped.length.toString())}* — ${skippedCoins}`,
+        `Active: *${escapeMarkdown(active.toString())}*`,
+    ];
+
+    return summaryLines.join('\n');
 };
