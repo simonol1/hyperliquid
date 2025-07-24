@@ -1,9 +1,10 @@
-import { logInfo, logError } from '../shared-utils/logger.js';
+import { logInfo, logError, logDebug } from '../shared-utils/logger.js';
 import type { Hyperliquid, OrderRequest } from '../sdk/index.js';
 import { retryWithBackoff } from '../shared-utils/retry-order.js';
 
 export const placeTakeProfits = async (
     hyperliquid: Hyperliquid,
+    subaccountAddress: string,
     coin: string,
     isLong: boolean,
     qty: number,
@@ -17,6 +18,7 @@ export const placeTakeProfits = async (
     const chunkQty = Number(((qty - finalChunkQty) / numLevels).toFixed(4));
     const placedPrices = new Set<number>();
 
+    // --- Regular TP levels ---
     for (const pct of takeProfitPercents) {
         const rawPx = isLong
             ? entryPrice * (1 + pct / 100)
@@ -25,20 +27,21 @@ export const placeTakeProfits = async (
         if (placedPrices.has(tidyPx)) continue;
         placedPrices.add(tidyPx);
 
-        const orderParams: OrderRequest = {
+        const order: OrderRequest = {
             coin,
             is_buy: !isLong,
             sz: chunkQty,
             limit_px: tidyPx,
             order_type: {
-                trigger: { triggerPx: tidyPx, isMarket: true, tpsl: 'tp' as const },
+                trigger: { triggerPx: tidyPx, isMarket: true, tpsl: 'tp' },
             },
             reduce_only: true,
             grouping: 'positionTpsl',
         };
 
+        logDebug(`[TP] Placing TP for ${coin} @ ${tidyPx} qty=${chunkQty}`);
         const result = await retryWithBackoff(
-            () => hyperliquid.exchange.placeOrder(orderParams),
+            () => hyperliquid.exchange.placeOrder({ ...order, vaultAddress: subaccountAddress }),
             3,
             1000,
             2,
@@ -50,26 +53,29 @@ export const placeTakeProfits = async (
             : logError(`[TP] ❌ Failed TP @ ${tidyPx}`);
     }
 
-    // 🏃 Final 20% runner
-    const runnerRawPx = isLong
-        ? entryPrice * (1 + runnerTargetPercent / 100)
-        : entryPrice * (1 - runnerTargetPercent / 100);
-    const runnerPx = Number(runnerRawPx.toFixed(pxDecimals));
+    // --- Runner TP (final 20%) ---
+    const runnerPx = Number(
+        (isLong
+            ? entryPrice * (1 + runnerTargetPercent / 100)
+            : entryPrice * (1 - runnerTargetPercent / 100)
+        ).toFixed(pxDecimals)
+    );
 
-    const runnerParams: OrderRequest = {
+    const runnerOrder: OrderRequest = {
         coin,
         is_buy: !isLong,
         sz: finalChunkQty,
         limit_px: runnerPx,
         order_type: {
-            trigger: { triggerPx: runnerPx, isMarket: true, tpsl: 'tp' as const },
+            trigger: { triggerPx: runnerPx, isMarket: true, tpsl: 'tp' },
         },
         reduce_only: true,
         grouping: 'positionTpsl',
     };
 
+    logDebug(`[TP] Placing Runner TP for ${coin} @ ${runnerPx} qty=${finalChunkQty}`);
     const runnerRes = await retryWithBackoff(
-        () => hyperliquid.exchange.placeOrder(runnerParams),
+        () => hyperliquid.exchange.placeOrder({ ...runnerOrder, vaultAddress: subaccountAddress }),
         3,
         1000,
         2,

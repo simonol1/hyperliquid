@@ -36,7 +36,9 @@ export const placeStopLoss = async (
         `Stop Loss @ ${stopPxTidy}`
     );
 
-    res?.status === 'ok'
-        ? logInfo(`[StopLoss] 🛑 Placed ${coin} SL @ ${stopPxTidy}`)
-        : logError(`[StopLoss] ❌ Failed ${coin}`);
+    if (res?.status === 'ok') {
+        logInfo(`[StopLoss] 🛑 Placed ${coin} SL @ ${stopPxTidy}`);
+    } else {
+        logError(`[StopLoss] ❌ Failed to place SL for ${coin} @ ${stopPxTidy} → ${JSON.stringify(res)}`);
+    }
 };
