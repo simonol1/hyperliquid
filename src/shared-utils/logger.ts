@@ -34,12 +34,26 @@ export const logInfo = (msg: string) => logger.info(`${msg}`);
 export const logDebug = (msg: string) => logger.debug(`${msg}`);
 export const logWarn = (msg: string | unknown) => logger.warn(` ⚠️ ${msg}`);
 
-export const logError = (msg: string) => {
-  console.error(`[ERROR] ${msg}`);
+export const logError = (msg: string | Error) => {
+  const timestamp = new Date().toISOString();
+  const isError = msg instanceof Error;
+  const message = isError ? msg.message : msg;
+  const stack = isError && msg.stack ? `\n\n*Stack Trace:*\n\`\`\`\n${msg.stack}\n\`\`\`` : '';
+
+  const telegramMessage = [
+    `❌ *Error Logged*`,
+    `🕒 ${timestamp}`,
+    `*Message:* ${message}`,
+    stack
+  ].join('\n');
+
+  console.error(`[ERROR] ${message}`);
+
   if (errorsChatId) {
-    sendTelegramMessage(`❌ *Error Logged*\n${msg}`, errorsChatId).catch(() => { });
+    sendTelegramMessage(telegramMessage, errorsChatId).catch(() => { });
   }
 };
+
 
 export const logTrade = ({
   asset,
