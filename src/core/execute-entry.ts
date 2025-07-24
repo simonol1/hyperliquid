@@ -80,6 +80,7 @@ export const executeEntry = async (
 
     await placeTakeProfits(
         hyperliquid,
+        config.subaccountAddress,
         coin,
         isLong,
         tidyQty,

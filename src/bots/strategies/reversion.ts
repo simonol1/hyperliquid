@@ -14,6 +14,7 @@ import { SkippedReason } from '../../shared-utils/telegram';
 import { TradeSignal } from '../../shared-utils/types';
 import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
 import { updateTrackedPosition } from '../../shared-utils/tracked-position';
+import { updateBotStatus, updateBotErrorStatus } from '../../shared-utils/healthcheck';
 
 export const runReversionBot = async (
   hyperliquid: Hyperliquid,
@@ -111,8 +112,12 @@ export const runReversionBot = async (
 
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
 
+      await updateBotStatus('reversion');
+
     } catch (err: any) {
       logError(`[Reversion Bot] ❌ Error: ${err.message}`);
+      await updateBotErrorStatus('reversion', err as Error);
+
     }
 
     const sleep = Math.max(0, config.loopIntervalMs - (Date.now() - loopStart));

@@ -14,6 +14,7 @@ import { pushSignal } from '../../shared-utils/push-signal';
 import { SkippedReason } from '../../shared-utils/telegram';
 import { updateTrackedPosition } from '../../shared-utils/tracked-position';
 import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
+import { updateBotErrorStatus, updateBotStatus } from '../../shared-utils/healthcheck';
 
 export const runTrendBot = async (
   hyperliquid: Hyperliquid,
@@ -111,9 +112,14 @@ export const runTrendBot = async (
 
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
 
+      await updateBotStatus('trend');
+
     } catch (err: any) {
+      await updateBotErrorStatus('trend', err as Error);
+
       logError(`[Trend Bot] ❌ Error: ${err.message}`);
     }
+
 
     const sleep = Math.max(0, config.loopIntervalMs - (Date.now() - loopStart));
     logInfo(`[Trend Bot] 💤 Sleeping ${sleep}ms`);

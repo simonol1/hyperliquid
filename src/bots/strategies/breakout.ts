@@ -15,6 +15,7 @@ import { SkippedReason } from '../../shared-utils/telegram';
 import { TradeSignal } from '../../shared-utils/types';
 import { updateTrackedPosition } from '../../shared-utils/tracked-position';
 import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
+import { updateBotStatus, updateBotErrorStatus } from '../../shared-utils/healthcheck';
 
 export const runBreakoutBot = async (
   hyperliquid: Hyperliquid,
@@ -112,9 +113,13 @@ export const runBreakoutBot = async (
       }
 
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
+      await updateBotStatus('breakout');
 
     } catch (err: any) {
       logError(`[Breakout Bot] ❌ Error: ${err.message}`);
+
+      await updateBotErrorStatus('breakout', err as Error);
+
     }
 
     const sleep = Math.max(0, config.loopIntervalMs - (Date.now() - loopStart));
