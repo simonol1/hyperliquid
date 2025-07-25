@@ -20,8 +20,8 @@ logInfo(`✅ [Exits Bot] Connected to Hyperliquid`);
 
 // Maximum price sanity check to prevent erroneous orders
 const MAX_PRICE_SANITY = 100_000;
-// ADJUSTED: Increased tolerance slightly more for price sanity check
-const PRICE_TOLERANCE_PCT = 30; // 30% tolerance
+// ADJUSTED: Increased tolerance further for price sanity check to 40%
+const PRICE_TOLERANCE_PCT = 40; // 40% tolerance
 
 type ExitOrderKey = 'tp1' | 'tp2' | 'tp3' | 'runner' | 'sl';
 
@@ -170,12 +170,16 @@ export const processPendingExitOrders = async () => {
 
             // Helper function for price validation against current market
             const isPriceSane = (calculatedPx: number): boolean => {
-                if (isNaN(calculatedPx) || !Number.isFinite(calculatedPx) || calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) return false;
+                if (isNaN(calculatedPx) || !Number.isFinite(calculatedPx) || calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) {
+                    logDebug(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`);
+                    return false;
+                }
                 if (isNaN(mid) || mid === 0) {
                     logWarn(`[ExitOrders] ⚠️ Current market price for ${coin} is invalid (${mid}). Skipping price sanity check.`);
                     return true; // Cannot perform sanity check, assume sane for now
                 }
                 const deviation = Math.abs((calculatedPx - mid) / mid) * 100;
+                logDebug(`[ExitOrders] Price sanity check for ${coin}: calculatedPx=${calculatedPx.toFixed(pxDecimals)}, mid=${mid.toFixed(pxDecimals)}, deviation=${deviation.toFixed(2)}% (tolerance=${PRICE_TOLERANCE_PCT}%)`); // NEW: Detailed debug log
                 return deviation <= PRICE_TOLERANCE_PCT;
             };
 

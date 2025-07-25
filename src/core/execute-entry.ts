@@ -61,26 +61,25 @@ export const executeEntry = async (
     const { entryPrice } = signal; // atr and strength are not needed for exit order queueing
 
     // Define TP percentages from config
-    const tpPercents = config.takeProfitPercents || [2, 4, 6];
+    const tpPercents = config.takeProfitPercents
 
     // Define runner and stop loss percentages from config
-    const runnerPercent = config.runnerPct; // This needs to be available in BotConfig
-    const stopLossPercent = config.stopLossPct; // This needs to be available in BotConfig
+    const runnerPercent = config.runnerPct;
+    const stopLossPercent = config.stopLossPct;
 
     // Queue SL and TP orders to ensure that order is filled to avoid rejection
     // FIX: Ensure totalQty, szDecimals, and runnerPercent are correctly passed to Redis
     await redis.set(`pendingExitOrders:${coin}`, JSON.stringify({
         coin,
         isLong,
-        totalQty: tidyQty, // Corrected: Use totalQty instead of qty
+        totalQty: tidyQty,
         entryPx: entryPrice,
         pxDecimals,
         szDecimals, // Added: Pass szDecimals to the worker
         tpPercents,
-        runnerPercent, // Corrected: Use runnerPercent for consistency
+        runnerPercent,
         stopLossPercent,
         ts: Date.now(),
-        // Initialize exit order statuses to prevent "Corrupted data" errors if not present
         tp1: { price: 0, qty: 0, placed: false },
         tp2: { price: 0, qty: 0, placed: false },
         tp3: { price: 0, qty: 0, placed: false },
