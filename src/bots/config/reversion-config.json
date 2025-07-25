@@ -29,6 +29,7 @@
     6,
     10
   ],
+  "runnerPct": 0.25,
   "stopLossPct": 2,
   "minVolumeUsd": 60000,
   "riskMapping": {

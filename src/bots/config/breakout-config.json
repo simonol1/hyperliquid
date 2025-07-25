@@ -33,6 +33,7 @@
     10,
     15
   ],
+  "runnerPct": 0.25,
   "riskMapping": {
     "minStrength": 50,
     "goldenScore": 70,

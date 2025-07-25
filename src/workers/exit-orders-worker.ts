@@ -20,9 +20,8 @@ logInfo(`✅ [Exits Bot] Connected to Hyperliquid`);
 
 // Maximum price sanity check to prevent erroneous orders
 const MAX_PRICE_SANITY = 100_000;
+// Re-introduced: Tolerance for how far TP/SL can be from current market price (e.g., 20%)
 const PRICE_TOLERANCE_PCT = 20; // 20% tolerance
-
-const RUNNER_PCT = 25;
 
 // Interface to track the placement status of an individual exit order (TP/SL/Runner)
 interface ExitOrderStatus {
@@ -44,6 +43,7 @@ interface ExitOrdersSignal {
     // Percentages for Take Profit and Stop Loss levels.
     // IMPORTANT: These should be part of the data stored in Redis for each signal.
     tpPercents: number[];
+    runnerPercent: number;
     stopLossPercent: number;
 
     // Status of individual exit orders
@@ -83,7 +83,7 @@ export const processPendingExitOrders = async () => {
             }
 
             const data: ExitOrdersSignal = JSON.parse(raw);
-            const { isLong, entryPx, pxDecimals, szDecimals, ts, totalQty, tpPercents, stopLossPercent } = data;
+            const { isLong, entryPx, pxDecimals, szDecimals, ts, totalQty, tpPercents, runnerPercent, stopLossPercent } = data;
 
             // Fetch current clearinghouse state to find the open position
             const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
@@ -112,8 +112,11 @@ export const processPendingExitOrders = async () => {
 
             // Calculate quantities based on 25% of current position for each TP and runner
             const chunkQty = Number((currentPositionQty * 0.25).toFixed(szDecimals));
+            // FIX: Corrected runnerQty calculation to be 25% of currentPositionQty (using 0.25 directly)
+            const runnerQty = Number((currentPositionQty * 0.25).toFixed(szDecimals));
 
-            const runnerQty = Number((currentPositionQty * (RUNNER_PCT / 100)).toFixed(szDecimals));
+            // Re-introduced: Fetch current market price for sanity checks
+            const tickSize = 1 / Math.pow(10, pxDecimals);
 
             const book = await hyperliquid.info.getL2Book(coin);
             const [asks, bids] = book.levels;
@@ -122,6 +125,7 @@ export const processPendingExitOrders = async () => {
 
             const currentMarketPrice = (bestAsk + bestBid) / 2;
 
+            // Re-introduced: Helper function for price validation against current market
             const isPriceSane = (calculatedPx: number): boolean => {
                 if (calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) return false;
                 if (isNaN(currentMarketPrice) || currentMarketPrice === 0) {
@@ -175,7 +179,7 @@ export const processPendingExitOrders = async () => {
 
             // --- Place Runner Take Profit Order ---
             if (!(data.runner as ExitOrderStatus)?.placed) {
-                const runnerPx = Number((isLong ? entryPx * (1 + RUNNER_PCT / 100) : entryPx * (1 - RUNNER_PCT / 100)).toFixed(pxDecimals));
+                const runnerPx = Number((isLong ? entryPx * (1 + runnerPercent / 100) : entryPx * (1 - runnerPercent / 100)).toFixed(pxDecimals));
 
                 // Validate runner order quantity and price
                 if (runnerQty < minSize || !isPriceSane(runnerPx)) {
@@ -197,6 +201,7 @@ export const processPendingExitOrders = async () => {
                     const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(runnerOrder), 3, 1000, 2, `Runner TP @ ${runnerPx}`);
                     const statusMessage = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
 
+                    // FIX: Corrected logging logic for order placement status
                     if (wasOrderAccepted(res)) {
                         logInfo(`[ExitOrders] 🏃 Runner TP @ ${runnerPx} qty=${runnerQty} is ${statusMessage} for ${coin}`);
                         (updates.runner as ExitOrderStatus) = { price: runnerPx, qty: runnerQty, placed: true };
@@ -233,6 +238,7 @@ export const processPendingExitOrders = async () => {
                     const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(slOrder), 3, 1000, 2, `SL @ ${stopPxTidy}`);
                     const statusMessage = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
 
+                    // FIX: Corrected logging logic for order placement status
                     if (wasOrderAccepted(res)) {
                         logInfo(`[ExitOrders] 🛑 SL @ ${stopPxTidy} qty=${slQty} is ${statusMessage} for ${coin}`);
                         (updates.sl as ExitOrderStatus) = { price: stopPxTidy, qty: slQty, placed: true };

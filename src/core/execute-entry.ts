@@ -65,6 +65,7 @@ export const executeEntry = async (
 
     // --- Take Profit Levels ---
     const tpPercents = config.takeProfitPercents || [2, 4, 6];
+    const runnerPct = config.runnerPct
 
     // queue SL and TP orders to ensure that order is filled to avoid rejection
     await redis.set(`pendingExitOrders:${coin}`, JSON.stringify({
@@ -75,6 +76,7 @@ export const executeEntry = async (
         pxDecimals,
         tpPercents,
         stopLossPercent: stopLossPct,
+        runnerPct,
         ts: Date.now(),
     }), { EX: 90 });
 
