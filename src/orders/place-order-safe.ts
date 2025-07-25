@@ -1,4 +1,4 @@
-// ✅ Place Order with IOC Priority, Clean Logging
+// ✅ Place Order with IOC Priority, Clean Logging + Status Checks
 import { logInfo, logDebug, logError } from '../shared-utils/logger.js';
 import type { Hyperliquid } from '../sdk/index.js';
 
@@ -34,17 +34,16 @@ export const placeOrderSafe = async (
         vaultAddress: subaccountAddress,
     });
 
-    const status = res.response?.data?.statuses?.[0];
+    const status = res?.response?.data?.statuses?.[0];
     const filled = parseFloat(status?.filled ?? '0');
 
-    if (res.status === 'ok' && status?.status !== 'error' && filled > 0) {
+    if (res.status === 'ok' && status?.status === 'accepted' && filled > 0) {
         logInfo(`[PlaceOrderSafe] ✅ ${tif} filled @ ${px}`);
         return true;
     }
 
     logDebug(`[PlaceOrderSafe] ${tif} not filled → retrying`);
 
-    // Retry once with more aggressive price
     const retryBook = await hyperliquid.info.getL2Book(coin);
     const [retryAsks, retryBids] = retryBook.levels;
     let retryPx = isBuy ? parseFloat(retryAsks[0].px) * 1.0002 : parseFloat(retryBids[0].px) * 0.9998;
@@ -62,10 +61,10 @@ export const placeOrderSafe = async (
         vaultAddress: subaccountAddress,
     });
 
-    const retryStatus = retryRes.response?.data?.statuses?.[0];
+    const retryStatus = retryRes?.response?.data?.statuses?.[0];
     const retryFilled = parseFloat(retryStatus?.filled ?? '0');
 
-    if (retryRes.status === 'ok' && retryStatus?.status !== 'error' && retryFilled > 0) {
+    if (retryRes.status === 'ok' && retryStatus?.status === 'accepted' && retryFilled > 0) {
         logInfo(`[PlaceOrderSafe] ✅ Retry ${tif} filled @ ${retryPx}`);
         return true;
     }
@@ -85,11 +84,12 @@ export const placeOrderSafe = async (
         vaultAddress: subaccountAddress,
     });
 
-    if (fallbackRes.status === 'ok') {
+    const fallbackStatus = fallbackRes?.response?.data?.statuses?.[0];
+    if (fallbackRes.status === 'ok' && fallbackStatus?.status === 'accepted') {
         logInfo(`[PlaceOrderSafe] 🟢 Fallback GTC placed @ ${fallbackPxTidy}`);
         return true;
     }
 
-    logError(`[PlaceOrderSafe] ❌ Fallback GTC failed`);
+    logError(`[PlaceOrderSafe] ❌ Fallback GTC failed → ${fallbackStatus?.status ?? 'unknown'}`);
     return false;
 };

@@ -1,7 +1,5 @@
 import { logInfo } from '../shared-utils/logger.js';
 import { placeOrderSafe } from '../orders/place-order-safe.js';
-import { placeStopLoss } from '../orders/place-stop-loss.js';
-import { placeTakeProfits } from '../orders/place-take-profit.js';
 import type { Hyperliquid } from '../sdk/index.js';
 import type { TradeSignal } from '../shared-utils/types.js';
 import type { CoinMeta } from '../shared-utils/coin-meta.js';
@@ -9,6 +7,7 @@ import type { BotConfig } from '../bots/config/bot-config.js';
 import type { PositionSizingResult } from '../shared-utils/position-size.js';
 import { checkRiskGuards } from '../shared-utils/risk-guards.js';
 import { setTrackedPosition } from '../shared-utils/tracked-position.js';
+import { redis } from '../shared-utils/redis-client.js';
 
 export const executeEntry = async (
     hyperliquid: Hyperliquid,
@@ -68,27 +67,18 @@ export const executeEntry = async (
     const tpPercents = config.takeProfitPercents || [2, 4, 6];
     const runnerPct = config.runnerPct
 
-    await placeStopLoss(
-        hyperliquid,
+    // queue SL and TP orders to ensure that order is filled to avoid rejection
+    await redis.set(`pendingExitOrders:${coin}`, JSON.stringify({
         coin,
         isLong,
-        tidyQty,
-        entryPrice,
-        stopLossPct,
-        pxDecimals
-    );
-
-    await placeTakeProfits(
-        hyperliquid,
-        config.subaccountAddress,
-        coin,
-        isLong,
-        tidyQty,
-        entryPrice,
+        qty: tidyQty,
+        entryPx: entryPrice,
+        pxDecimals,
         tpPercents,
-        runnerPct,
-        pxDecimals
-    );
+        runnerPercent: runnerPct,
+        stopLossPercent: stopLossPct,
+        ts: Date.now(),
+    }), { EX: 90 });
 
     await setTrackedPosition(coin, {
         qty: tidyQty,

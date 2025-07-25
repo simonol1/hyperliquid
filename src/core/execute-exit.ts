@@ -5,7 +5,6 @@ import type { Hyperliquid } from '../sdk/index.js';
 import type { CoinMeta } from '../shared-utils/coin-meta.js';
 import { checkRiskGuards } from '../shared-utils/risk-guards.js';
 import { getTrackedPosition, updateTrackedPosition } from '../shared-utils/tracked-position.js';
-import { retryWithBackoff } from '../shared-utils/retry-order.js';
 
 export interface ExitIntent {
     quantity: number;
@@ -70,28 +69,26 @@ export const executeExit = async (
     const tidyQty = Number(safeQty.toFixed(szDecimals));
     const exitSide = isShort ? 'BUY' : 'SELL';
 
-    const book = await hyperliquid.info.getL2Book(coin);
-    const [asks, bids] = book.levels;
-    const px = isShort ? parseFloat(asks[0].px) * 1.0001 : parseFloat(bids[0].px) * 0.9999;
-    const tidyPx = Number(px.toFixed(pxDecimals));
-
-    const ok = await retryWithBackoff(() =>
-        placeOrderSafe(
-            hyperliquid,
-            coin,
-            exitSide === 'BUY',
-            tidyQty,
-            true,
-            'Ioc',
-            subaccountAddress,
-            pxDecimals
-        )
+    const ok = await placeOrderSafe(
+        hyperliquid,
+        coin,
+        exitSide === 'BUY',
+        tidyQty,
+        true,
+        'Ioc',
+        subaccountAddress,
+        pxDecimals
     );
 
     if (!ok) {
-        logError(`[ExecuteExit] ❌ Failed ${coin} after retries`);
+        logError(`[ExecuteExit] ❌ Failed ${coin} to place exit order`);
         return;
     }
+
+    const book = await hyperliquid.info.getL2Book(coin);
+    const [asks, bids] = book.levels;
+    const marketPx = isShort ? parseFloat(asks[0].px) : parseFloat(bids[0].px);
+    const tidyPx = Number(marketPx.toFixed(pxDecimals));
 
     logExit({ asset: coin, price: tidyPx, reason: exitIntent.reason });
 
