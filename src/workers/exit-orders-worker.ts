@@ -20,8 +20,8 @@ logInfo(`✅ [Exits Bot] Connected to Hyperliquid`);
 
 // Maximum price sanity check to prevent erroneous orders
 const MAX_PRICE_SANITY = 100_000;
-// Tolerance for how far TP/SL can be from current market price (e.g., 25%)
-const PRICE_TOLERANCE_PCT = 25;
+// ADJUSTED: Increased tolerance slightly more for price sanity check
+const PRICE_TOLERANCE_PCT = 30; // 30% tolerance
 
 type ExitOrderKey = 'tp1' | 'tp2' | 'tp3' | 'runner' | 'sl';
 
@@ -40,7 +40,9 @@ const getTidyPx = (price: number, pxDecimals: number): number => {
         return NaN; // Return NaN if input is invalid
     }
     const tickSize = 1 / Math.pow(10, pxDecimals);
-    return Number((Math.round(price / tickSize) * tickSize).toFixed(pxDecimals));
+    // Perform rounding, but keep it as a number for internal calculations.
+    // The final string conversion will happen just before sending to API.
+    return Math.round(price / tickSize) * tickSize;
 };
 
 // Helper to round quantity to szDecimals and ensure it's a number
@@ -180,7 +182,7 @@ export const processPendingExitOrders = async () => {
             // Helper function to place individual exit orders
             const placeExitOrder = async (
                 label: string,
-                px: number,
+                px: number, // px is the numerically tidied price
                 qty: number,
                 tpsl: 'tp' | 'sl'
             ): Promise<{ status: string; placed: boolean }> => {
@@ -199,11 +201,12 @@ export const processPendingExitOrders = async () => {
                     coin,
                     is_buy: !isLong,
                     sz: qty,
-                    // Pass as Number, as per Hyperliquid SDK's expectation for limit_px
-                    limit_px: px,
+                    // FIX: Pass limit_px as a string formatted to pxDecimals
+                    limit_px: px.toFixed(pxDecimals),
                     order_type: {
                         trigger: {
-                            triggerPx: px, // Pass as Number
+                            // FIX: Pass triggerPx as a string formatted to pxDecimals
+                            triggerPx: px.toFixed(pxDecimals),
                             isMarket: true,
                             tpsl
                         },
@@ -218,17 +221,17 @@ export const processPendingExitOrders = async () => {
                     3, // retries
                     2000, // initialDelayMs (increased from 1000)
                     2, // multiplier
-                    `${label} @ ${px}` // Label for logging
+                    `${label} @ ${px.toFixed(pxDecimals)}` // Label for logging, use formatted price
                 );
 
                 const statusObj = res?.response?.data?.statuses?.[0];
                 const statusMessage = statusObj?.status || JSON.stringify(statusObj);
 
                 if (wasOrderAccepted(statusObj)) { // Check statusObj directly
-                    logInfo(`[ExitOrders] ✅ ${label} @ ${px} qty=${qty} is ${statusMessage} for ${coin}`);
+                    logInfo(`[ExitOrders] ✅ ${label} @ ${px.toFixed(pxDecimals)} qty=${qty} is ${statusMessage} for ${coin}`);
                     return { status: statusMessage, placed: true };
                 } else {
-                    logError(`[ExitOrders] ❌ ${label} @ ${px} failed for ${coin} → ${statusMessage}`);
+                    logError(`[ExitOrders] ❌ ${label} @ ${px.toFixed(pxDecimals)} failed for ${coin} → ${statusMessage}`);
                     return { status: statusMessage, placed: false };
                 }
             };
@@ -251,7 +254,7 @@ export const processPendingExitOrders = async () => {
                     continue;
                 }
                 if (isNaN(px) || !isPriceSane(px)) {
-                    logError(`[ExitOrders] ❌ Invalid TP${i + 1} order for ${coin}: px=${px} (not sane or invalid number, deviation > ${PRICE_TOLERANCE_PCT}% from market). Marking as skipped.`);
+                    logError(`[ExitOrders] ❌ Invalid TP${i + 1} order for ${coin}: px=${px.toFixed(pxDecimals)} (not sane or invalid number, deviation > ${PRICE_TOLERANCE_PCT}% from market). Marking as skipped.`);
                     setExitOrder(updates, field, { price: px, qty: chunkQty, placed: true });
                     continue;
                 }
@@ -270,7 +273,7 @@ export const processPendingExitOrders = async () => {
                     logError(`[ExitOrders] ❌ Invalid Runner TP for ${coin}: qty=${runnerQty} (below minSize=${minSize}). Marking as skipped.`);
                     updates.runner = { price: px, qty: runnerQty, placed: true };
                 } else if (isNaN(px) || !isPriceSane(px)) {
-                    logError(`[ExitOrders] ❌ Invalid Runner TP for ${coin}: px=${px} (not sane or invalid number, deviation > ${PRICE_TOLERANCE_PCT}% from market). Marking as skipped.`);
+                    logError(`[ExitOrders] ❌ Invalid Runner TP for ${coin}: px=${px.toFixed(pxDecimals)} (not sane or invalid number, deviation > ${PRICE_TOLERANCE_PCT}% from market). Marking as skipped.`);
                     updates.runner = { price: px, qty: runnerQty, placed: true };
                 } else {
                     const result = await placeExitOrder('Runner TP', px, runnerQty, 'tp');
@@ -287,7 +290,7 @@ export const processPendingExitOrders = async () => {
                     logError(`[ExitOrders] ❌ Invalid SL for ${coin}: qty=${slQty} (below minSize=${minSize}). Marking as skipped.`);
                     updates.sl = { price: px, qty: slQty, placed: true };
                 } else if (isNaN(px) || !isPriceSane(px)) {
-                    logError(`[ExitOrders] ❌ Invalid SL for ${coin}: px=${px} (not sane or invalid number, deviation > ${PRICE_TOLERANCE_PCT}% from market). Marking as skipped.`);
+                    logError(`[ExitOrders] ❌ Invalid SL for ${coin}: px=${px.toFixed(pxDecimals)} (not sane or invalid number, deviation > ${PRICE_TOLERANCE_PCT}% from market). Marking as skipped.`);
                     updates.sl = { price: px, qty: slQty, placed: true };
                 } else {
                     const result = await placeExitOrder('SL', px, slQty, 'sl');
