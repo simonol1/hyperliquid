@@ -116,7 +116,7 @@ services:
     build:
       context: .
       target: runner
-    container_name: exit
+    container_name: exits
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379

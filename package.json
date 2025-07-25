@@ -38,7 +38,8 @@
     "start:trend-bot": "node dist/trend.mjs",
     "start:breakout-bot": "node dist/breakout.mjs",
     "start:reversion-bot": "node dist/reversion.mjs",
-    "start:orchestrator": "node dist/orchestrator.mjs"
+    "start:orchestrator": "node dist/orchestrator.mjs",
+    "start:exits": "node dist/exits.mjs"
   },
   "keywords": [
     "hyperliquid",

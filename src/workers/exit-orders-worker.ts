@@ -22,8 +22,8 @@ const PRICE_TOLERANCE_PCT = 20;
 
 // Price rounding helper
 const getTidyPx = (price: number, pxDecimals: number): number => {
-    const tickSize = 1 / Math.pow(10, pxDecimals);
-    return Math.round(price / tickSize) * tickSize;
+    const multiplier = Math.pow(10, pxDecimals);
+    return Math.round(price * multiplier) / multiplier;
 };
 
 interface ExitOrderStatus {
@@ -138,6 +138,7 @@ export const processPendingExitOrders = async () => {
                 };
 
                 const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(tpOrder), 3, 1000, 2, `TP${i + 1} @ ${tidyPx}`);
+                logInfo(JSON.stringify(res?.response?.data))
                 const status = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
 
                 if (wasOrderAccepted(status)) {
