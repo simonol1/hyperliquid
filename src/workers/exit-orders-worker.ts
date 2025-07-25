@@ -20,8 +20,8 @@ logInfo(`✅ [Exits Bot] Connected to Hyperliquid`);
 
 // Maximum price sanity check to prevent erroneous orders
 const MAX_PRICE_SANITY = 100_000;
-// ADJUSTED: Increased tolerance slightly for price sanity check
-const PRICE_TOLERANCE_PCT = 25; // 25% tolerance
+// Tolerance for how far TP/SL can be from current market price (e.g., 25%)
+const PRICE_TOLERANCE_PCT = 25;
 
 type ExitOrderKey = 'tp1' | 'tp2' | 'tp3' | 'runner' | 'sl';
 
@@ -67,9 +67,9 @@ interface ExitOrdersSignal {
     pxDecimals: number;
     szDecimals: number;
     ts: number;
-    totalQty: number;
+    totalQty: number; // Matches executeEntry
     tpPercents: number[];
-    runnerPercent: number; // This comes from bot config via Redis
+    runnerPercent: number; // Matches executeEntry
     stopLossPercent: number;
     tp1: ExitOrderStatus;
     tp2: ExitOrderStatus;
@@ -79,10 +79,12 @@ interface ExitOrdersSignal {
 }
 
 const wasOrderAccepted = (status: any): boolean => {
+    // Hyperliquid API response status can be a string or an object with a 'status' property
     if (typeof status === 'object' && status !== null && 'status' in status) {
         return ['accepted', 'resting', 'waitingForTrigger'].includes(status.status);
     }
-    return ['accepted', 'resting', 'waitingForTrigger'].includes(status); // For direct string status
+    // Fallback for cases where status is directly a string (less common but defensive)
+    return ['accepted', 'resting', 'waitingForTrigger'].includes(status);
 };
 
 const metaMap: Map<string, CoinMeta> = await buildMetaMap(hyperliquid);
@@ -93,6 +95,8 @@ export const processPendingExitOrders = async () => {
         logDebug(`[ExitOrders] No pending exit order keys found.`);
         return;
     }
+
+    logDebug(`[ExitOrders] Processing ${keys.length} pending exit order keys.`);
 
     for (const key of keys) {
         try {
@@ -105,7 +109,7 @@ export const processPendingExitOrders = async () => {
 
             const data: ExitOrdersSignal = JSON.parse(raw);
 
-            // FIX: Robust data validation immediately after parsing from Redis
+            // Robust data validation immediately after parsing from Redis
             if (isNaN(data.entryPx) || !Number.isFinite(data.entryPx) ||
                 isNaN(data.pxDecimals) || !Number.isFinite(data.pxDecimals) ||
                 isNaN(data.szDecimals) || !Number.isFinite(data.szDecimals) ||
@@ -146,8 +150,11 @@ export const processPendingExitOrders = async () => {
                 continue;
             }
 
+            // Re-enabled: Cancel any stale GTC orders for this coin before placing new ones
+            await cancelStaleGtc(hyperliquid, coin, subaccountAddress);
+
             const minSize = meta.minSize;
-            // FIX: Quantities are 25% of current position, correctly calculated
+            // Quantities are 25% of current position, correctly calculated
             const chunkQty = getTidyQty(currentPositionQty * 0.25, szDecimals);
             const runnerQty = getTidyQty(currentPositionQty * 0.25, szDecimals);
             const slQty = getTidyQty(currentPositionQty, szDecimals); // SL covers full current position
@@ -160,13 +167,13 @@ export const processPendingExitOrders = async () => {
             const mid = (bestAsk + bestBid) / 2;
 
             // Helper function for price validation against current market
-            const isPriceSane = (p: number) => {
-                if (isNaN(p) || !Number.isFinite(p) || p <= 0 || p > MAX_PRICE_SANITY) return false;
+            const isPriceSane = (calculatedPx: number): boolean => {
+                if (isNaN(calculatedPx) || !Number.isFinite(calculatedPx) || calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) return false;
                 if (isNaN(mid) || mid === 0) {
                     logWarn(`[ExitOrders] ⚠️ Current market price for ${coin} is invalid (${mid}). Skipping price sanity check.`);
                     return true; // Cannot perform sanity check, assume sane for now
                 }
-                const deviation = Math.abs((p - mid) / mid) * 100;
+                const deviation = Math.abs((calculatedPx - mid) / mid) * 100;
                 return deviation <= PRICE_TOLERANCE_PCT;
             };
 
@@ -177,12 +184,12 @@ export const processPendingExitOrders = async () => {
                 qty: number,
                 tpsl: 'tp' | 'sl'
             ): Promise<{ status: string; placed: boolean }> => {
-                // FIX: Ensure px is valid before passing to toFixed and OrderRequest
+                // Ensure px is valid before passing to OrderRequest
                 if (isNaN(px) || !Number.isFinite(px) || px <= 0) {
                     logError(`[ExitOrders] ❌ ${label} @ ${px} has invalid price calculation. Skipping order.`);
                     return { status: 'Invalid Price Calculation', placed: false };
                 }
-                // FIX: Ensure qty is valid before passing to OrderRequest
+                // Ensure qty is valid before passing to OrderRequest
                 if (isNaN(qty) || !Number.isFinite(qty) || qty <= 0) {
                     logError(`[ExitOrders] ❌ ${label} @ ${px} has invalid quantity calculation (${qty}). Skipping order.`);
                     return { status: 'Invalid Quantity Calculation', placed: false };
@@ -192,13 +199,11 @@ export const processPendingExitOrders = async () => {
                     coin,
                     is_buy: !isLong,
                     sz: qty,
-                    // FIX: Pass as Number, not string from toFixed, if API expects number.
-                    // If API expects string, this is fine, but deserialization error suggests otherwise.
-                    // Let's try passing Number, and if it fails, we'll revert to string.
-                    limit_px: px, // Passing as number
+                    // Pass as Number, as per Hyperliquid SDK's expectation for limit_px
+                    limit_px: px,
                     order_type: {
                         trigger: {
-                            triggerPx: px, // Passing as number
+                            triggerPx: px, // Pass as Number
                             isMarket: true,
                             tpsl
                         },
@@ -207,7 +212,7 @@ export const processPendingExitOrders = async () => {
                     grouping: 'positionTpsl',
                 };
 
-                // FIX: Increased initialDelayMs for retryWithBackoff to combat rate limits
+                // Increased initialDelayMs for retryWithBackoff to combat rate limits
                 const res = await retryWithBackoff(
                     () => hyperliquid.exchange.placeOrder(order),
                     3, // retries
@@ -257,7 +262,7 @@ export const processPendingExitOrders = async () => {
 
             // --- Place Runner Take Profit Order ---
             if (!data.runner?.placed) {
-                // FIX: Use runnerPercent from data for price calculation
+                // Use runnerPercent from data for price calculation
                 const rawPx = isLong ? entryPx * (1 + runnerPercent / 100) : entryPx * (1 - runnerPercent / 100);
                 const px = getTidyPx(rawPx, pxDecimals); // Ensure px is tidied and a number
 

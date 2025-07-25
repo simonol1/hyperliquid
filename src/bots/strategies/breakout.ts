@@ -104,7 +104,7 @@ export const runBreakoutBot = async (
 
         await updateTrailingHigh(virtualPos, analysis.currentPrice, updateTrackedPosition, coin);
 
-        const exitIntent = await evaluateExit(virtualPos, analysis, config, coin);
+        const exitIntent = await evaluateExit(hyperliquid, virtualPos, analysis, config, coin);
 
         if (exitIntent) {
           await executeExit(hyperliquid, config.subaccountAddress, exitIntent, metaMap.get(coin));

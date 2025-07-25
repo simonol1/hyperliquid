@@ -1,4 +1,4 @@
-import { logInfo } from '../shared-utils/logger.js';
+import { logInfo, logWarn } from '../shared-utils/logger.js';
 import { placeOrderSafe } from '../orders/place-order-safe.js';
 import type { Hyperliquid } from '../sdk/index.js';
 import type { TradeSignal } from '../shared-utils/types.js';
@@ -16,8 +16,14 @@ export const executeEntry = async (
     coinMeta: CoinMeta,
     risk: PositionSizingResult,
 ) => {
-    const { coin, pxDecimals, szDecimals } = coinMeta;
+    const { coin, pxDecimals, szDecimals, minSize } = coinMeta; // Destructure minSize from coinMeta
     const rawQty = (risk.capitalRiskUsd * risk.leverage) / signal.entryPrice;
+
+    // Pre-check minSize before calling checkRiskGuards to prevent tiny orders
+    if (rawQty < minSize) {
+        logWarn(`[ExecuteEntry] ⚠️ Initial calculated quantity (${rawQty.toFixed(szDecimals)}) for ${coin} is below minSize (${minSize}). Skipping entry.`);
+        return; // Do not proceed with the trade
+    }
 
     const isLong = signal.side === 'LONG';
 
@@ -52,33 +58,35 @@ export const executeEntry = async (
 
     if (!success) return;
 
-    const { atr, entryPrice, strength } = signal;
+    const { entryPrice } = signal; // atr and strength are not needed for exit order queueing
 
-    // --- Stop Loss ---
-    const atrPct = atr ? (atr / entryPrice) * 100 : config.stopLossPct;
-    const stopLossPct = Math.max(atrPct * 1.2, config.stopLossPct);
-
-    // --- Trailing Stop ---
-    const trailingStopTarget = isLong
-        ? entryPrice * (1 - config.trailingStopPct / 100)
-        : entryPrice * (1 + config.trailingStopPct / 100);
-
-    // --- Take Profit Levels ---
+    // Define TP percentages from config
     const tpPercents = config.takeProfitPercents || [2, 4, 6];
-    const runnerPct = config.runnerPct
 
-    // queue SL and TP orders to ensure that order is filled to avoid rejection
+    // Define runner and stop loss percentages from config
+    const runnerPercent = config.runnerPct; // This needs to be available in BotConfig
+    const stopLossPercent = config.stopLossPct; // This needs to be available in BotConfig
+
+    // Queue SL and TP orders to ensure that order is filled to avoid rejection
+    // FIX: Ensure totalQty, szDecimals, and runnerPercent are correctly passed to Redis
     await redis.set(`pendingExitOrders:${coin}`, JSON.stringify({
         coin,
         isLong,
-        qty: tidyQty,
+        totalQty: tidyQty, // Corrected: Use totalQty instead of qty
         entryPx: entryPrice,
         pxDecimals,
+        szDecimals, // Added: Pass szDecimals to the worker
         tpPercents,
-        stopLossPercent: stopLossPct,
-        runnerPct,
+        runnerPercent, // Corrected: Use runnerPercent for consistency
+        stopLossPercent,
         ts: Date.now(),
-    }), { EX: 90 });
+        // Initialize exit order statuses to prevent "Corrupted data" errors if not present
+        tp1: { price: 0, qty: 0, placed: false },
+        tp2: { price: 0, qty: 0, placed: false },
+        tp3: { price: 0, qty: 0, placed: false },
+        runner: { price: 0, qty: 0, placed: false },
+        sl: { price: 0, qty: 0, placed: false },
+    }), { EX: 90 }); // Expires in 90 seconds if not processed
 
     await setTrackedPosition(coin, {
         qty: tidyQty,
@@ -91,7 +99,9 @@ export const executeEntry = async (
         takeProfitTarget: isLong
             ? entryPrice * (1 + tpPercents[tpPercents.length - 1] / 100)
             : entryPrice * (1 - tpPercents[tpPercents.length - 1] / 100),
-        trailingStopTarget,
+        trailingStopTarget: isLong
+            ? entryPrice * (1 - config.trailingStopPct / 100)
+            : entryPrice * (1 + config.trailingStopPct / 100),
         trailingStopActive: true,
         trailingStopPct: config.trailingStopPct,
         highestPrice: entryPrice,
