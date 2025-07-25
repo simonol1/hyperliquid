@@ -5,7 +5,7 @@ export type BotOrWorker =
     | 'breakout'
     | 'reversion'
     | 'orchestrator'
-    | 'exit-orders-worker'
+    | 'exits'
 
 export const updateBotErrorStatus = async (
     bot: BotOrWorker,

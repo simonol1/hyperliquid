@@ -26,14 +26,13 @@
   "rsiOverboughtThreshold": 70,
   "rsiOversoldThreshold": 30,
   "minVolumeUsd": 50000,
-  "trailingStopPct": 0.5,
+  "trailingStopPct": 1.5,
   "stopLossPct": 3,
   "takeProfitPercents": [
-    2,
-    4,
-    8
+    5,
+    10,
+    15
   ],
-  "runnerPct": 0.15,
   "riskMapping": {
     "minStrength": 50,
     "goldenScore": 70,

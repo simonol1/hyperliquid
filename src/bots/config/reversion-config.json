@@ -21,22 +21,21 @@
   "macdFastPeriod": 12,
   "macdSlowPeriod": 26,
   "macdSignalPeriod": 9,
-  "rsiOverboughtThreshold": 70,
-  "rsiOversoldThreshold": 30,
-  "trailingStopPct": 0.5,
+  "rsiOverboughtThreshold": 75,
+  "rsiOversoldThreshold": 25,
+  "trailingStopPct": 2,
   "takeProfitPercents": [
-    2,
-    4,
-    6
+    3,
+    6,
+    10
   ],
-  "runnerPct": 0.1,
-  "stopLossPct": 1.5,
+  "stopLossPct": 2,
   "minVolumeUsd": 60000,
   "riskMapping": {
     "minStrength": 50,
     "goldenScore": 80,
-    "minCapitalRiskPct": 0.05,
-    "maxCapitalRiskPct": 0.10,
+    "minCapitalRiskPct": 5,
+    "maxCapitalRiskPct": 10,
     "minLeverage": 3,
     "maxLeverage": 10
   },

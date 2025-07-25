@@ -39,7 +39,6 @@ export interface BotConfig {
 
   trailingStopPct: number;
   stopLossPct: number;
-  runnerPct: number;
   takeProfitPercents: number[];
 
   subaccountAddress: string;

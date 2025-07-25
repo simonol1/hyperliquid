@@ -40,11 +40,11 @@ services:
       timeout: 10s
       retries: 3
 
-  trend_bot:
+  trend:
     build:
       context: .
       target: runner
-    container_name: trend_bot
+    container_name: trend
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
@@ -64,16 +64,16 @@ services:
       timeout: 10s
       retries: 3
 
-  breakout_bot:
+  breakout:
     build:
       context: .
       target: runner
-    container_name: breakout_bot
+    container_name: breakout
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
       - BOT_NAME=BREAKOUT
-      - NODE_OPTIONS=--dns-result-order=ipv4first # <--- ADD THIS LINE
+      - NODE_OPTIONS=--dns-result-order=ipv4first 
     command: ["node", "dist/breakout.mjs"]
     depends_on:
       - redis
@@ -88,11 +88,11 @@ services:
       timeout: 10s
       retries: 3
 
-  reversion_bot:
+  reversion:
     build:
       context: .
       target: runner
-    container_name: reversion_bot
+    container_name: reversion
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
@@ -112,17 +112,17 @@ services:
       timeout: 10s
       retries: 3
 
-  exit_orders_worker:
+  exits:
     build:
       context: .
       target: runner
-    container_name: exit_orders_worker
+    container_name: exit
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - BOT_NAME=EXIT_ORDERS_WORKER
+      - BOT_NAME=EXIT
       - NODE_OPTIONS=--dns-result-order=ipv4first
-    command: ["node", "dist/exitOrdersWorker.mjs"]
+    command: ["node", "dist/exits.mjs"]
     depends_on:
       - redis
     restart: unless-stopped

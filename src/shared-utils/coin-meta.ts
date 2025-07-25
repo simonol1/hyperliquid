@@ -9,6 +9,7 @@ export interface CoinMeta {
     dayNtlVlm: number;
     openInterest: number;
     onlyIsolated?: boolean;
+    minSize: number; // ADDED: minSize to CoinMeta interface
 }
 
 export const buildMetaMap = async (
@@ -20,7 +21,8 @@ export const buildMetaMap = async (
     for (let i = 0; i < meta.universe.length; i++) {
         const coin = meta.universe[i];
         const ctx = assetCtxs[i];
-        const staticMeta = COIN_META[coin.name] ?? { pxDecimals: 2, minVlmUsd: 100_000 };
+        // Ensure staticMeta also includes minSize. Default to 0 if not explicitly set.
+        const staticMeta = COIN_META[coin.name] ?? { pxDecimals: 2, minVlmUsd: 100_000, minSize: 0 };
 
         metaMap.set(coin.name, {
             coin: coin.name,
@@ -31,31 +33,34 @@ export const buildMetaMap = async (
             dayNtlVlm: Number(ctx.dayNtlVlm) || 0,
             openInterest: Number(ctx.openInterest) || 0,
             minVlmUsd: staticMeta.minVlmUsd,
+            minSize: staticMeta.minSize, // ADDED: Populate minSize from staticMeta
         });
     }
 
     return metaMap;
 };
 
-export const COIN_META: Record<string, { pxDecimals: number; minVlmUsd: number }> = {
+// ADDED: minSize to the COIN_META entries with suggested values
+export const COIN_META: Record<string, { pxDecimals: number; minVlmUsd: number; minSize: number }> = {
     // Majors
-    "BTC-PERP": { pxDecimals: 2, minVlmUsd: 10_000_000 },
-    "ETH-PERP": { pxDecimals: 2, minVlmUsd: 5_000_000 },
-    "SOL-PERP": { pxDecimals: 2, minVlmUsd: 2_000_000 },
-    "LINK-PERP": { pxDecimals: 3, minVlmUsd: 1_000_000 },
+    "BTC-PERP": { pxDecimals: 2, minVlmUsd: 10_000_000, minSize: 0.0001 },
+    "ETH-PERP": { pxDecimals: 2, minVlmUsd: 5_000_000, minSize: 0.001 },
+    "SOL-PERP": { pxDecimals: 2, minVlmUsd: 2_000_000, minSize: 0.01 },
+    "LINK-PERP": { pxDecimals: 3, minVlmUsd: 1_000_000, minSize: 0.1 },
 
     // Mid-caps
-    "ARB-PERP": { pxDecimals: 4, minVlmUsd: 1_000_000 },
-    "SUI-PERP": { pxDecimals: 4, minVlmUsd: 1_000_000 },
-    "SEI-PERP": { pxDecimals: 4, minVlmUsd: 500_000 },
-    "WLD-PERP": { pxDecimals: 4, minVlmUsd: 500_000 },
+    "ARB-PERP": { pxDecimals: 4, minVlmUsd: 1_000_000, minSize: 1 },
+    "SUI-PERP": { pxDecimals: 4, minVlmUsd: 1_000_000, minSize: 1 },
+    "SEI-PERP": { pxDecimals: 4, minVlmUsd: 500_000, minSize: 1 },
+    "WLD-PERP": { pxDecimals: 4, minVlmUsd: 500_000, minSize: 1 },
 
     // Meme coins
-    "DOGE-PERP": { pxDecimals: 5, minVlmUsd: 1_000_000 },
-    "SHIB-PERP": { pxDecimals: 8, minVlmUsd: 500_000 },
-    "PEPE-PERP": { pxDecimals: 8, minVlmUsd: 500_000 },
-    "FLOKI-PERP": { pxDecimals: 8, minVlmUsd: 500_000 },
-    "BONK-PERP": { pxDecimals: 8, minVlmUsd: 500_000 },
-    "WIF-PERP": { pxDecimals: 5, minVlmUsd: 500_000 },
-    "HYPE-PERP": { pxDecimals: 3, minVlmUsd: 500_000 },
+    "DOGE-PERP": { pxDecimals: 5, minVlmUsd: 1_000_000, minSize: 5 },
+    "XRP-PERP": { pxDecimals: 5, minVlmUsd: 1_000_000, minSize: 5 },
+    "SHIB-PERP": { pxDecimals: 8, minVlmUsd: 500_000, minSize: 100000 },
+    "PEPE-PERP": { pxDecimals: 8, minVlmUsd: 500_000, minSize: 100000 },
+    "FLOKI-PERP": { pxDecimals: 8, minVlmUsd: 500_000, minSize: 100000 },
+    "BONK-PERP": { pxDecimals: 8, minVlmUsd: 500_000, minSize: 100000 },
+    "WIF-PERP": { pxDecimals: 5, minVlmUsd: 500_000, minSize: 1 },
+    "HYPE-PERP": { pxDecimals: 3, minVlmUsd: 500_000, minSize: 1 },
 };
