@@ -10,7 +10,7 @@ const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET!;
 if (!subaccountAddress) throw new Error('Missing subaccount wallet env var');
 
 const hyperliquid = new Hyperliquid({
-    enableWs: false, // optional unless you need websockets
+    enableWs: false,
     privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY!,
     walletAddress: process.env.HYPERLIQUID_AGENT_WALLET!,
     vaultAddress: subaccountAddress,
@@ -19,18 +19,27 @@ const hyperliquid = new Hyperliquid({
 await hyperliquid.connect();
 logInfo(`✅ [ExitOrders Bot] Connected to Hyperliquid`);
 
-
 interface ExitOrdersSignal {
     coin: string;
     isLong: boolean;
     qty: number;
     entryPx: number;
     pxDecimals: number;
-    tpPercents: number[];        // e.g. [1.5, 3, 5]
-    runnerPercent: number;       // e.g. 8
-    stopLossPercent: number;     // e.g. 2.5
+    tpPercents: number[];
+    runnerPercent: number;
+    stopLossPercent: number;
     ts: number;
 }
+
+const wasOrderAccepted = (res: any): boolean => {
+    const status = res?.response?.data?.statuses?.[0];
+    const filledQty = parseFloat(status?.filled?.totalSz ?? '0');
+    return (
+        res?.status === 'ok' &&
+        (status?.status === 'accepted' || status?.status === 'resting') &&
+        filledQty > 0
+    );
+};
 
 export const processPendingExitOrders = async () => {
     const keys = await redis.keys('pendingExitOrders:*');
@@ -92,11 +101,10 @@ export const processPendingExitOrders = async () => {
                     `TP @ ${tidyPx}`
                 );
 
-                const status = res?.response?.data?.statuses?.[0];
-                if (res?.status === 'ok' && status?.status === 'accepted') {
+                if (wasOrderAccepted(res)) {
                     logInfo(`[ExitOrders] ✅ TP @ ${tidyPx} qty=${chunkQty}`);
                 } else {
-                    logError(`[ExitOrders] ❌ TP @ ${tidyPx} failed → ${status?.status ?? 'unknown'}`);
+                    logError(`[ExitOrders] ❌ TP @ ${tidyPx} failed → ${JSON.stringify(res?.response?.data?.statuses?.[0])}`);
                     allSucceeded = false;
                 }
             }
@@ -125,11 +133,10 @@ export const processPendingExitOrders = async () => {
                 `Runner TP @ ${runnerPx}`
             );
 
-            const runnerStatus = runnerRes?.response?.data?.statuses?.[0];
-            if (runnerRes?.status === 'ok' && runnerStatus?.status === 'accepted') {
+            if (wasOrderAccepted(runnerRes)) {
                 logInfo(`[ExitOrders] 🏃 Runner TP @ ${runnerPx} qty=${runnerQty}`);
             } else {
-                logError(`[ExitOrders] ❌ Runner TP @ ${runnerPx} failed → ${runnerStatus?.status ?? 'unknown'}`);
+                logError(`[ExitOrders] ❌ Runner TP @ ${runnerPx} failed → ${JSON.stringify(runnerRes?.response?.data?.statuses?.[0])}`);
                 allSucceeded = false;
             }
 
@@ -158,11 +165,10 @@ export const processPendingExitOrders = async () => {
                 `SL @ ${stopPxTidy}`
             );
 
-            const slStatus = slRes?.response?.data?.statuses?.[0];
-            if (slRes?.status === 'ok' && slStatus?.status === 'accepted') {
+            if (wasOrderAccepted(slRes)) {
                 logInfo(`[ExitOrders] 🛑 SL @ ${stopPxTidy} qty=${qty}`);
             } else {
-                logError(`[ExitOrders] ❌ SL @ ${stopPxTidy} failed → ${slStatus?.status ?? 'unknown'}`);
+                logError(`[ExitOrders] ❌ SL @ ${stopPxTidy} failed → ${JSON.stringify(slRes?.response?.data?.statuses?.[0])}`);
                 allSucceeded = false;
             }
 
@@ -174,10 +180,9 @@ export const processPendingExitOrders = async () => {
             }
 
             await updateBotStatus('exit-orders-worker');
-
         } catch (err: any) {
             logError(`[ExitOrders] ❌ Error: ${err}`);
-            await updateBotErrorStatus('exit-orders-worker', err)
+            await updateBotErrorStatus('exit-orders-worker', err);
         }
     }
 };

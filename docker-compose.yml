@@ -122,7 +122,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - BOT_NAME=EXIT_ORDERS_WORKER
       - NODE_OPTIONS=--dns-result-order=ipv4first
-    command: ["node", "dist/workers/exitOrdersWorker.mjs"]
+    command: ["node", "dist/exitOrdersWorker.mjs"]
     depends_on:
       - redis
     restart: unless-stopped

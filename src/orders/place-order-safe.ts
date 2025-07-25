@@ -1,5 +1,5 @@
 // ✅ Place Order with IOC Priority, Clean Logging + Status Checks
-import { logInfo, logDebug, logError } from '../shared-utils/logger.js';
+import { logInfo, logDebug, logError, logWarn } from '../shared-utils/logger.js';
 import type { Hyperliquid } from '../sdk/index.js';
 
 interface PlaceOrderResult {
@@ -41,11 +41,15 @@ export const placeOrderSafe = async (
     });
 
     const status = res?.response?.data?.statuses?.[0];
-    const filled = parseFloat(status?.filled ?? '0');
 
-    if (res.status === 'ok' && status?.status === 'accepted' && filled > 0) {
-        logInfo(`[PlaceOrderSafe] ✅ ${tif} filled @ ${px}`);
-        return { success: true, px, tif };
+    if (res.status === 'ok') {
+        const filled = parseFloat(status?.filled?.totalSz ?? '0');
+        const resting = status?.resting;
+
+        if (filled || resting) {
+            logInfo(`[PlaceOrderSafe] ✅ IOC ${filled ? 'filled' : 'resting'} @ ${px}`);
+            return { success: true, px, tif };
+        }
     }
 
     logDebug(`[PlaceOrderSafe] ${tif} not filled → retrying`);
@@ -68,11 +72,15 @@ export const placeOrderSafe = async (
     });
 
     const retryStatus = retryRes?.response?.data?.statuses?.[0];
-    const retryFilled = parseFloat(retryStatus?.filled ?? '0');
 
-    if (retryRes.status === 'ok' && retryStatus?.status === 'accepted' && retryFilled > 0) {
-        logInfo(`[PlaceOrderSafe] ✅ Retry ${tif} filled @ ${retryPx}`);
-        return { success: true, px: retryPx, tif };
+    if (retryRes.status === 'ok') {
+        const filled = parseFloat(retryStatus?.filled?.totalSz ?? '0');
+        const resting = retryStatus?.resting;
+
+        if (filled || resting) {
+            logInfo(`[PlaceOrderSafe] ✅ Retry IOC ${filled ? 'filled' : 'resting'} @ ${retryPx}`);
+            return { success: true, px: retryPx, tif };
+        }
     }
 
     logDebug(`[PlaceOrderSafe] Retry ${tif} failed → fallback GTC`);
@@ -92,11 +100,19 @@ export const placeOrderSafe = async (
         });
 
         const fallbackStatus = fallbackRes?.response?.data?.statuses?.[0];
-        if (fallbackStatus?.status === 'accepted' || fallbackStatus?.status === 'resting') {
-            logInfo(`[PlaceOrderSafe] 🟢 Fallback GTC placed @ ${fallbackPxTidy} with status: ${fallbackStatus}`);
-            return { success: true, px: fallbackPxTidy, tif: 'Gtc' };
+
+        if (fallbackRes.status === 'ok') {
+            const filled = fallbackStatus?.filled?.totalSz;
+            const resting = fallbackStatus?.resting;
+
+            if (filled || resting) {
+                logInfo(`[PlaceOrderSafe] ✅ Fallback GTC ${filled ? 'filled' : 'resting'} @ ${fallbackPxTidy}`);
+                return { success: true, px: fallbackPxTidy, tif: 'Gtc' };
+            } else {
+                logWarn(`[PlaceOrderSafe] ⚠️ Fallback GTC returned unrecognized status → ${JSON.stringify(fallbackStatus)}`);
+            }
         } else {
-            logError(`❌ Fallback GTC failed → ${JSON.stringify(fallbackRes)}`);
+            logError(`[PlaceOrderSafe] ❌ Fallback GTC failed → ${JSON.stringify(fallbackRes)}`);
         }
 
     } catch (e: any) {
