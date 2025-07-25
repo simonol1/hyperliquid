@@ -1,28 +1,39 @@
-// ✅ Deferred TP/SL Worker for Hyperliquid — plugs into your existing logic
+// ✅ Exit Orders Worker for Hyperliquid — places TP/SL safely after entries
 import { redis } from '../shared-utils/redis-client.js';
 import { logInfo, logError, logDebug, logWarn } from '../shared-utils/logger.js';
 import { Hyperliquid } from '../sdk/index.js';
 import { retryWithBackoff } from '../shared-utils/retry-order.js';
 import { OrderRequest } from '../sdk/index.js';
+import { updateBotErrorStatus, updateBotStatus } from '../shared-utils/healthcheck.js';
 
-const hyperliquid = new Hyperliquid();
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET!;
 if (!subaccountAddress) throw new Error('Missing subaccount wallet env var');
 
-interface DeferredTPSignal {
+const hyperliquid = new Hyperliquid({
+    enableWs: false, // optional unless you need websockets
+    privateKey: process.env.HYPERLIQUID_AGENT_PRIVATE_KEY!,
+    walletAddress: process.env.HYPERLIQUID_AGENT_WALLET!,
+    vaultAddress: subaccountAddress,
+});
+
+await hyperliquid.connect();
+logInfo(`✅ [ExitOrders Bot] Connected to Hyperliquid`);
+
+
+interface ExitOrdersSignal {
     coin: string;
     isLong: boolean;
     qty: number;
     entryPx: number;
     pxDecimals: number;
-    tpPercents: number[];         // e.g. [1.5, 3, 5]
-    runnerPercent: number;        // e.g. 8
-    stopLossPercent: number;      // e.g. 2.5
+    tpPercents: number[];        // e.g. [1.5, 3, 5]
+    runnerPercent: number;       // e.g. 8
+    stopLossPercent: number;     // e.g. 2.5
     ts: number;
 }
 
-export const processDeferredTP = async () => {
-    const keys = await redis.keys('pendingTP:*');
+export const processPendingExitOrders = async () => {
+    const keys = await redis.keys('pendingExitOrders:*');
     if (keys.length === 0) return;
 
     for (const key of keys) {
@@ -31,23 +42,25 @@ export const processDeferredTP = async () => {
             const raw = await redis.get(key);
             if (!raw) continue;
 
-            const data: DeferredTPSignal = JSON.parse(raw);
+            const data: ExitOrdersSignal = JSON.parse(raw);
             const { isLong, qty, entryPx, pxDecimals, tpPercents, runnerPercent, stopLossPercent, ts } = data;
 
             const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
-            const openPosition = perpState.assetPositions.find(p => p.position.coin === coin && parseFloat(p.position?.szi ?? '0') > 0);
+            const openPosition = perpState.assetPositions.find(
+                p => p.position.coin === coin && parseFloat(p.position?.szi ?? '0') > 0
+            );
 
-            // Ensure the position is open and valid — allow partial fills
             if (!openPosition) {
                 if (Date.now() - ts > 60_000) {
-                    logWarn(`[DeferredTP] ❌ Expired: ${coin} TP/SL not placed in 60s`);
+                    logWarn(`[ExitOrders] ❌ Expired: ${coin} TP/SL not placed in 60s`);
                     await redis.del(key);
                 } else {
-                    logDebug(`[DeferredTP] ⏳ Awaiting position open for ${coin}`);
+                    logDebug(`[ExitOrders] ⏳ Awaiting position open for ${coin}`);
                 }
                 continue;
             }
 
+            let allSucceeded = true;
             const placedPrices = new Set<number>();
             const numLevels = tpPercents.length;
             const runnerQty = Number((qty * 0.2).toFixed(4));
@@ -76,14 +89,15 @@ export const processDeferredTP = async () => {
                     3,
                     1000,
                     2,
-                    `Deferred TP @ ${tidyPx}`
+                    `TP @ ${tidyPx}`
                 );
 
                 const status = res?.response?.data?.statuses?.[0];
                 if (res?.status === 'ok' && status?.status === 'accepted') {
-                    logInfo(`[DeferredTP] ✅ TP @ ${tidyPx} qty=${chunkQty}`);
+                    logInfo(`[ExitOrders] ✅ TP @ ${tidyPx} qty=${chunkQty}`);
                 } else {
-                    logError(`[DeferredTP] ❌ TP @ ${tidyPx} failed → ${status?.status ?? 'unknown'}`);
+                    logError(`[ExitOrders] ❌ TP @ ${tidyPx} failed → ${status?.status ?? 'unknown'}`);
+                    allSucceeded = false;
                 }
             }
 
@@ -108,20 +122,20 @@ export const processDeferredTP = async () => {
                 3,
                 1000,
                 2,
-                `Deferred Runner TP @ ${runnerPx}`
+                `Runner TP @ ${runnerPx}`
             );
 
             const runnerStatus = runnerRes?.response?.data?.statuses?.[0];
             if (runnerRes?.status === 'ok' && runnerStatus?.status === 'accepted') {
-                logInfo(`[DeferredTP] 🏃 Runner TP @ ${runnerPx} qty=${runnerQty}`);
+                logInfo(`[ExitOrders] 🏃 Runner TP @ ${runnerPx} qty=${runnerQty}`);
             } else {
-                logError(`[DeferredTP] ❌ Runner TP @ ${runnerPx} failed → ${runnerStatus?.status ?? 'unknown'}`);
+                logError(`[ExitOrders] ❌ Runner TP @ ${runnerPx} failed → ${runnerStatus?.status ?? 'unknown'}`);
+                allSucceeded = false;
             }
 
             const stopPx = isLong
                 ? entryPx * (1 - stopLossPercent / 100)
                 : entryPx * (1 + stopLossPercent / 100);
-
             const stopPxTidy = Number(stopPx.toFixed(pxDecimals));
 
             const slOrder: OrderRequest = {
@@ -141,19 +155,29 @@ export const processDeferredTP = async () => {
                 3,
                 1000,
                 2,
-                `Deferred SL @ ${stopPxTidy}`
+                `SL @ ${stopPxTidy}`
             );
 
             const slStatus = slRes?.response?.data?.statuses?.[0];
             if (slRes?.status === 'ok' && slStatus?.status === 'accepted') {
-                logInfo(`[DeferredTP] 🛑 SL @ ${stopPxTidy} qty=${qty}`);
+                logInfo(`[ExitOrders] 🛑 SL @ ${stopPxTidy} qty=${qty}`);
             } else {
-                logError(`[DeferredTP] ❌ SL @ ${stopPxTidy} failed → ${slStatus?.status ?? 'unknown'}`);
+                logError(`[ExitOrders] ❌ SL @ ${stopPxTidy} failed → ${slStatus?.status ?? 'unknown'}`);
+                allSucceeded = false;
             }
 
-            await redis.del(key);
-        } catch (err) {
-            logError(`[DeferredTP] ❌ Error: ${err}`);
+            if (allSucceeded) {
+                await redis.del(key);
+                logInfo(`[ExitOrders] ✅ All exit orders placed for ${coin}, key cleared`);
+            } else {
+                logWarn(`[ExitOrders] 🔁 Some exit orders failed for ${coin}, will retry next loop`);
+            }
+
+            await updateBotStatus('exit-orders-worker');
+
+        } catch (err: any) {
+            logError(`[ExitOrders] ❌ Error: ${err}`);
+            await updateBotErrorStatus('exit-orders-worker', err)
         }
     }
 };

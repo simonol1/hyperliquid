@@ -112,6 +112,30 @@ services:
       timeout: 10s
       retries: 3
 
+  exit_orders_worker:
+    build:
+      context: .
+      target: runner
+    container_name: exit_orders_worker
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - BOT_NAME=EXIT_ORDERS_WORKER
+      - NODE_OPTIONS=--dns-result-order=ipv4first
+    command: ["node", "dist/workers/exitOrdersWorker.mjs"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+    volumes:
+      - ./logs/exit_orders:/app/logs
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   redis_data:
 

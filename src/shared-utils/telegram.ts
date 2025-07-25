@@ -1,40 +1,42 @@
 import axios from 'axios';
-import { logError, logDebug } from './logger.js';
+import { logError, logDebug, logWarn } from './logger.js';
 import http from 'http';
 import https from 'https';
-import { TradeSignal } from './types.js';
+
+export const errorsChatId = process.env.TELEGRAM_ERROR_CHAT_ID
+export const summaryChatId = process.env.TELEGRAM_SUMMARY_CHAT_ID
+export const monitorChatId = process.env.TELEGRAM_MONITOR_CHAT_ID
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
-export const monitorChatId = process.env.TELEGRAM_MONITOR_CHAT_ID;
-export const summaryChatId = process.env.TELEGRAM_SUMMARY_CHAT_ID;
-export const errorsChatId = process.env.TELEGRAM_ERROR_CHAT_ID;
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+if (!botToken) {
+    throw new Error('❌ TELEGRAM_BOT_TOKEN is missing');
+}
+
+export type SkippedReason = {
+    coin: string;
+    reason: string;
+};
+
+type PendingMessage = {
+    text: string;
+    escape: boolean;
+    resolve: () => void;
+    reject: (err: any) => void;
+};
+
+// Per-chat queues
+const chatQueues: Record<string, PendingMessage[]> = {};
+const isSending: Record<string, boolean> = {};
 
 /**
  * Escapes all characters required by Telegram MarkdownV2.
- * Full list: _ * [ ] ( ) ~ ` > # + - = | { } . !
  */
-export const escapeMarkdown = (text: string): string => {
-    return text.replace(/([_*\[\]()~`>#+=|{}.!\\-])/g, '\\$1');
-};
+export const escapeMarkdown = (text: string): string =>
+    text.replace(/([_*\[\]()~`>#+=|{}.!\\-])/g, '\\$1');
 
-/**
- * Optional: Wrap content in Telegram code block (```...```) for raw formatting.
- */
-const wrapCodeBlock = (text: string): string => {
-    return ['```', text, '```'].join('\n');
-};
-
-export const sendTelegramMessage = async (
-    text: string,
-    chatId: string,
-    escape: boolean = true
-): Promise<void> => {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (!botToken) {
-        logError('❌ Telegram BOT_TOKEN is not set. Cannot send message.');
-        return;
-    }
-
+const sendNow = async (chatId: string, text: string, escape: boolean = true): Promise<void> => {
     const url = `${TELEGRAM_API_BASE}${botToken}/sendMessage`;
     const payload = {
         chat_id: chatId,
@@ -43,66 +45,60 @@ export const sendTelegramMessage = async (
     };
 
     try {
-        logDebug(`[Telegram] Attempting to send message to ${chatId}. Payload: ${JSON.stringify(payload)}`);
         await axios.post(url, payload, {
             timeout: 30000,
             httpAgent: new http.Agent({ family: 4 }),
             httpsAgent: new https.Agent({ family: 4 }),
         });
-        logDebug(`[Telegram] Message sent successfully to ${chatId}`);
+        logDebug(`[Telegram] ✅ Message sent to ${chatId}`);
     } catch (err: any) {
-        logError(`❌ Telegram send failed: ${err.message || JSON.stringify(err)}`);
-        if (err.response) {
-            logError(`[Telegram] Response Error Data: ${JSON.stringify(err.response.data)}`);
-            logError(`[Telegram] Response Error Status: ${err.response.status}`);
-            logError(`[Telegram] Response Error Headers: ${JSON.stringify(err.response.headers)}`);
-        } else if (err.request) {
-            logError(`[Telegram] No response received: Method ${err.config?.method}, URL: ${err.config?.url}`);
-        }
-        if (err.stack) {
-            logError(`[Telegram] Error Stack: ${err.stack}`);
+        if (err.response?.status === 429) {
+            const retryAfter = err.response.data?.parameters?.retry_after || 5;
+            logWarn(`[Telegram] ⏳ Rate limited for ${retryAfter}s. Waiting...`);
+            await new Promise((r) => setTimeout(r, retryAfter * 1000));
+            return sendNow(chatId, text, escape); // Retry once
+        } else {
+            logError(`[Telegram] ❌ Failed to send message: ${err.message}`);
+            if (err.response) {
+                logError(`[Telegram] ❌ Response Data: ${JSON.stringify(err.response.data)}`);
+            }
+            throw err;
         }
     }
 };
 
+const processQueue = async (chatId: string) => {
+    if (isSending[chatId]) return;
+    isSending[chatId] = true;
 
-// --- Telegram Summary Formatter ---
+    while (chatQueues[chatId]?.length > 0) {
+        const msg = chatQueues[chatId].shift();
+        if (!msg) continue;
 
-export interface SignalSummary extends Pick<TradeSignal, 'coin' | 'side' | 'strength'> { }
+        try {
+            await sendNow(chatId, msg.text, msg.escape);
+            await new Promise((r) => setTimeout(r, 1000)); // 1s delay between sends
+            msg.resolve();
+        } catch (err) {
+            msg.reject(err);
+        }
+    }
 
-export type SkippedReason = {
-    coin: string;
-    reason: string;
+    isSending[chatId] = false;
 };
 
 /**
- * Generates a clean, readable cycle summary message formatted for Telegram MarkdownV2.
+ * Queued + rate-limited Telegram message sender.
  */
-export const buildTelegramCycleSummary = (
-    signals: SignalSummary[],
-    skipped: SkippedReason[],
-    active: number
-): string => {
-    const top = signals.sort((a, b) => b.strength - a.strength)[0];
+export const sendTelegramMessage = (text: string, chatId: string, escape: boolean = true): Promise<void> => {
+    if (!chatId) {
+        logError('❌ Telegram chatId missing');
+        return Promise.resolve();
+    }
 
-    const isGolden = (strength: number) => strength >= 90;
-    const star = (strength: number) => (isGolden(strength) ? '⭐️ ' : '');
-
-    const topText = top
-        ? `${star(top.strength)}${escapeMarkdown(top.coin)} ${escapeMarkdown(top.side)} *${escapeMarkdown(top.strength.toFixed(1))}*`
-        : 'None';
-
-    const skippedCoins = skipped.length
-        ? skipped.map(s => escapeMarkdown(s.coin)).join(', ')
-        : 'None';
-
-    const summaryLines = [
-        `*Cycle Summary*`,
-        `Signals: *${escapeMarkdown(signals.length.toString())}*`,
-        `Top: ${topText}`,
-        `Skipped: *${escapeMarkdown(skipped.length.toString())}* — ${skippedCoins}`,
-        `Active: *${escapeMarkdown(active.toString())}*`,
-    ];
-
-    return summaryLines.join('\n');
+    return new Promise((resolve, reject) => {
+        if (!chatQueues[chatId]) chatQueues[chatId] = [];
+        chatQueues[chatId].push({ text, escape, resolve, reject });
+        processQueue(chatId);
+    });
 };

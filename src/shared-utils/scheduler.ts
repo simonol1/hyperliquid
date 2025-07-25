@@ -22,13 +22,15 @@ export const scheduleGlobalHeartbeat = () => {
             return;
         }
 
-        const botStatus = await Promise.all(
-            ['trend', 'breakout', 'reversion'].map(bot => redis.get(`status:${bot}`))
+        const components = ['trend', 'breakout', 'reversion', 'orchestrator', 'exit-orders-worker'];
+
+        const statuses = await Promise.all(
+            components.map(bot => redis.get(`status:${bot}`))
         );
 
         const message = [
             `✅ *Global Health Check*`,
-            ...['trend', 'breakout', 'reversion'].map((bot, i) => `${bot}: ${botStatus[i] || '❓ No data'}`),
+            ...components.map((bot, i) => `${bot}: ${statuses[i] || '❓ No data'}`),
             `🕐 Time: ${new Date().toLocaleString()}`
         ].join('\n');
 
@@ -38,3 +40,4 @@ export const scheduleGlobalHeartbeat = () => {
 
     logInfo(`[Heartbeat] ⏰ Global heartbeat scheduled hourly`);
 };
+

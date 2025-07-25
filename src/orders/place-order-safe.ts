@@ -92,12 +92,13 @@ export const placeOrderSafe = async (
         });
 
         const fallbackStatus = fallbackRes?.response?.data?.statuses?.[0];
-        if (fallbackRes.status === 'ok' && fallbackStatus?.status === 'accepted') {
-            logInfo(`[PlaceOrderSafe] 🟢 Fallback GTC placed @ ${fallbackPxTidy}`);
+        if (fallbackStatus?.status === 'accepted' || fallbackStatus?.status === 'resting') {
+            logInfo(`[PlaceOrderSafe] 🟢 Fallback GTC placed @ ${fallbackPxTidy} with status: ${fallbackStatus}`);
             return { success: true, px: fallbackPxTidy, tif: 'Gtc' };
+        } else {
+            logError(`❌ Fallback GTC failed → ${JSON.stringify(fallbackRes)}`);
         }
 
-        logError(`[PlaceOrderSafe] ❌ Fallback GTC failed → ${JSON.stringify(fallbackStatus)}`);
     } catch (e: any) {
         logError(`[PlaceOrderSafe] ❌ Fallback GTC exception → ${JSON.stringify(e.response?.data || e.message || e)}`);
     }
