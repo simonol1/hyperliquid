@@ -186,3 +186,5 @@ export const processPendingExitOrders = async () => {
         }
     }
 };
+
+setInterval(processPendingExitOrders, 5000); // every 5 seconds

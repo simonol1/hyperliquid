@@ -39,7 +39,7 @@ export const executeEntry = async (
         risk.leverage
     );
 
-    const ok = await placeOrderSafe(
+    const { success } = await placeOrderSafe(
         hyperliquid,
         coin,
         isLong,
@@ -50,7 +50,7 @@ export const executeEntry = async (
         pxDecimals
     );
 
-    if (!ok) return;
+    if (!success) return;
 
     const { atr, entryPrice, strength } = signal;
 
