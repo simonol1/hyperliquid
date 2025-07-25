@@ -15,6 +15,7 @@ import { SkippedReason } from '../../shared-utils/telegram';
 import { updateTrackedPosition } from '../../shared-utils/tracked-position';
 import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
 import { updateBotErrorStatus, updateBotStatus } from '../../shared-utils/healthcheck';
+import { cleanupStaleGtcExits } from '../../orders/cleanup-stale-gtc';
 
 export const runTrendBot = async (
   hyperliquid: Hyperliquid,
@@ -110,8 +111,8 @@ export const runTrendBot = async (
         }
       }
 
+      await cleanupStaleGtcExits(hyperliquid, config.subaccountAddress, config.coins);
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
-
       await updateBotStatus('trend');
 
     } catch (err: any) {

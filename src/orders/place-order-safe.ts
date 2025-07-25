@@ -2,6 +2,12 @@
 import { logInfo, logDebug, logError } from '../shared-utils/logger.js';
 import type { Hyperliquid } from '../sdk/index.js';
 
+interface PlaceOrderResult {
+    success: boolean;
+    px?: number;
+    tif?: 'Ioc' | 'Gtc';
+}
+
 export const placeOrderSafe = async (
     hyperliquid: Hyperliquid,
     coin: string,
@@ -11,7 +17,7 @@ export const placeOrderSafe = async (
     tif: 'Ioc' | 'Gtc',
     subaccountAddress: string,
     pxDecimals: number
-) => {
+): Promise<PlaceOrderResult> => {
     const tickSize = 1 / Math.pow(10, pxDecimals);
 
     const book = await hyperliquid.info.getL2Book(coin);
@@ -39,7 +45,7 @@ export const placeOrderSafe = async (
 
     if (res.status === 'ok' && status?.status === 'accepted' && filled > 0) {
         logInfo(`[PlaceOrderSafe] ✅ ${tif} filled @ ${px}`);
-        return true;
+        return { success: true, px, tif };
     }
 
     logDebug(`[PlaceOrderSafe] ${tif} not filled → retrying`);
@@ -66,30 +72,35 @@ export const placeOrderSafe = async (
 
     if (retryRes.status === 'ok' && retryStatus?.status === 'accepted' && retryFilled > 0) {
         logInfo(`[PlaceOrderSafe] ✅ Retry ${tif} filled @ ${retryPx}`);
-        return true;
+        return { success: true, px: retryPx, tif };
     }
 
     logDebug(`[PlaceOrderSafe] Retry ${tif} failed → fallback GTC`);
 
-    const fallbackPx = isBuy ? parseFloat(retryAsks[0].px) : parseFloat(retryBids[0].px);
-    const fallbackPxTidy = Math.round(fallbackPx / tickSize) * tickSize;
+    try {
+        const fallbackPx = isBuy ? parseFloat(retryAsks[0].px) : parseFloat(retryBids[0].px);
+        const fallbackPxTidy = Math.round(fallbackPx / tickSize) * tickSize;
 
-    const fallbackRes = await hyperliquid.exchange.placeOrder({
-        coin,
-        is_buy: isBuy,
-        sz: qty,
-        limit_px: fallbackPxTidy.toFixed(pxDecimals),
-        order_type: { limit: { tif: 'Gtc' } },
-        reduce_only: reduceOnly,
-        vaultAddress: subaccountAddress,
-    });
+        const fallbackRes = await hyperliquid.exchange.placeOrder({
+            coin,
+            is_buy: isBuy,
+            sz: qty,
+            limit_px: fallbackPxTidy.toFixed(pxDecimals),
+            order_type: { limit: { tif: 'Gtc' } },
+            reduce_only: reduceOnly,
+            vaultAddress: subaccountAddress,
+        });
 
-    const fallbackStatus = fallbackRes?.response?.data?.statuses?.[0];
-    if (fallbackRes.status === 'ok' && fallbackStatus?.status === 'accepted') {
-        logInfo(`[PlaceOrderSafe] 🟢 Fallback GTC placed @ ${fallbackPxTidy}`);
-        return true;
+        const fallbackStatus = fallbackRes?.response?.data?.statuses?.[0];
+        if (fallbackRes.status === 'ok' && fallbackStatus?.status === 'accepted') {
+            logInfo(`[PlaceOrderSafe] 🟢 Fallback GTC placed @ ${fallbackPxTidy}`);
+            return { success: true, px: fallbackPxTidy, tif: 'Gtc' };
+        }
+
+        logError(`[PlaceOrderSafe] ❌ Fallback GTC failed → ${JSON.stringify(fallbackStatus)}`);
+    } catch (e: any) {
+        logError(`[PlaceOrderSafe] ❌ Fallback GTC exception → ${JSON.stringify(e.response?.data || e.message || e)}`);
     }
 
-    logError(`[PlaceOrderSafe] ❌ Fallback GTC failed → ${fallbackStatus?.status ?? 'unknown'}`);
-    return false;
+    return { success: false };
 };

@@ -5,6 +5,7 @@ import type { Hyperliquid } from '../sdk/index.js';
 import type { CoinMeta } from '../shared-utils/coin-meta.js';
 import { checkRiskGuards } from '../shared-utils/risk-guards.js';
 import { getTrackedPosition, updateTrackedPosition } from '../shared-utils/tracked-position.js';
+import { redis } from '../shared-utils/redis-client.js';
 
 export interface ExitIntent {
     quantity: number;
@@ -69,7 +70,7 @@ export const executeExit = async (
     const tidyQty = Number(safeQty.toFixed(szDecimals));
     const exitSide = isShort ? 'BUY' : 'SELL';
 
-    const ok = await placeOrderSafe(
+    const result = await placeOrderSafe(
         hyperliquid,
         coin,
         exitSide === 'BUY',
@@ -80,8 +81,22 @@ export const executeExit = async (
         pxDecimals
     );
 
-    if (!ok) {
+    if (!result.success) {
         logError(`[ExecuteExit] ❌ Failed ${coin} to place exit order`);
+        return;
+    }
+
+    if (result.tif === 'Gtc') {
+        await redis.set(
+            `openExit:${coin}:${subaccountAddress}`,
+            JSON.stringify({
+                px: result.px,
+                qty: tidyQty,
+                ts: Date.now(),
+            }),
+            { EX: 1800 }
+        );
+        logInfo(`[ExecuteExit] ⏳ GTC fallback exit tracked in Redis for ${coin}`);
         return;
     }
 

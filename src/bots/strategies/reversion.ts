@@ -15,6 +15,7 @@ import { TradeSignal } from '../../shared-utils/types';
 import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
 import { updateTrackedPosition } from '../../shared-utils/tracked-position';
 import { updateBotStatus, updateBotErrorStatus } from '../../shared-utils/healthcheck';
+import { cleanupStaleGtcExits } from '../../orders/cleanup-stale-gtc';
 
 export const runReversionBot = async (
   hyperliquid: Hyperliquid,
@@ -110,8 +111,8 @@ export const runReversionBot = async (
         }
       }
 
+      await cleanupStaleGtcExits(hyperliquid, config.subaccountAddress, config.coins);
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
-
       await updateBotStatus('reversion');
 
     } catch (err: any) {

@@ -16,6 +16,7 @@ import { TradeSignal } from '../../shared-utils/types';
 import { updateTrackedPosition } from '../../shared-utils/tracked-position';
 import { updateTrailingHigh } from '../../shared-utils/trailing-stop-helpers';
 import { updateBotStatus, updateBotErrorStatus } from '../../shared-utils/healthcheck';
+import { cleanupStaleGtcExits } from '../../orders/cleanup-stale-gtc';
 
 export const runBreakoutBot = async (
   hyperliquid: Hyperliquid,
@@ -112,6 +113,7 @@ export const runBreakoutBot = async (
         }
       }
 
+      await cleanupStaleGtcExits(hyperliquid, config.subaccountAddress, config.coins);
       await pushSignal({ bot: config.strategy, status: 'BOT_COMPLETED', timestamp: Date.now() });
       await updateBotStatus('breakout');
 
