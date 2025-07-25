@@ -22,8 +22,8 @@ const PRICE_TOLERANCE_PCT = 20;
 
 // Price rounding helper
 const getTidyPx = (price: number, pxDecimals: number): number => {
-    const multiplier = Math.pow(10, pxDecimals);
-    return Math.round(price * multiplier) / multiplier;
+    const tickSize = 1 / Math.pow(10, pxDecimals);
+    return Math.round(price / tickSize) * tickSize;
 };
 
 interface ExitOrderStatus {
@@ -129,7 +129,7 @@ export const processPendingExitOrders = async () => {
                     coin,
                     is_buy: !isLong,
                     sz: chunkQty,
-                    limit_px: tidyPx,
+                    limit_px: tidyPx.toFixed(pxDecimals),
                     order_type: {
                         trigger: { triggerPx: tidyPx, isMarket: true, tpsl: 'tp' },
                     },
@@ -137,9 +137,10 @@ export const processPendingExitOrders = async () => {
                     grouping: 'positionTpsl',
                 };
 
+                logDebug(`[ExitOrders] Final tidyPx for ${coin}: ${tidyPx} (pxDecimals=${pxDecimals})`);
+
                 const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(tpOrder), 3, 1000, 2, `TP${i + 1} @ ${tidyPx}`);
-                logInfo(JSON.stringify(res?.response?.data))
-                const status = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
+                const status = res?.response?.data?.statuses?.[0]
 
                 if (wasOrderAccepted(status)) {
                     logInfo(`[ExitOrders] ✅ TP${i + 1} @ ${tidyPx} qty=${chunkQty} is ${status} for ${coin}`);
@@ -162,7 +163,7 @@ export const processPendingExitOrders = async () => {
                         coin,
                         is_buy: !isLong,
                         sz: runnerQty,
-                        limit_px: runnerPx,
+                        limit_px: runnerPx.toFixed(pxDecimals),
                         order_type: {
                             trigger: { triggerPx: runnerPx, isMarket: true, tpsl: 'tp' },
                         },
@@ -170,8 +171,10 @@ export const processPendingExitOrders = async () => {
                         grouping: 'positionTpsl',
                     };
 
+                    logDebug(`[ExitOrders] Final tidyPx for ${coin}: ${runnerPx} (pxDecimals=${pxDecimals})`);
+
                     const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(runnerOrder), 3, 1000, 2, `Runner TP @ ${runnerPx}`);
-                    const status = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
+                    const status = res?.response?.data?.statuses?.[0]
 
                     if (wasOrderAccepted(status)) {
                         logInfo(`[ExitOrders] 🏃 Runner TP @ ${runnerPx} qty=${runnerQty} is ${status} for ${coin}`);
@@ -196,7 +199,7 @@ export const processPendingExitOrders = async () => {
                         coin,
                         is_buy: !isLong,
                         sz: slQty,
-                        limit_px: stopPxTidy,
+                        limit_px: stopPxTidy.toFixed(pxDecimals),
                         order_type: {
                             trigger: { triggerPx: stopPxTidy, isMarket: true, tpsl: 'sl' },
                         },
@@ -205,7 +208,9 @@ export const processPendingExitOrders = async () => {
                     };
 
                     const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(slOrder), 3, 1000, 2, `SL @ ${stopPxTidy}`);
-                    const status = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
+                    const status = res?.response?.data?.statuses?.[0]
+
+                    logDebug(`[ExitOrders] Final tidyPx for ${coin}: ${stopPxTidy} (pxDecimals=${pxDecimals})`);
 
                     if (wasOrderAccepted(status)) {
                         logInfo(`[ExitOrders] 🛑 SL @ ${stopPxTidy} qty=${slQty} is ${status} for ${coin}`);
