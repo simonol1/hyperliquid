@@ -20,6 +20,8 @@ logInfo(`✅ [Exits Bot] Connected to Hyperliquid`);
 
 // Maximum price sanity check to prevent erroneous orders
 const MAX_PRICE_SANITY = 100_000;
+const PRICE_TOLERANCE_PCT = 20; // 20% tolerance
+
 const RUNNER_PCT = 25;
 
 // Interface to track the placement status of an individual exit order (TP/SL/Runner)
@@ -35,7 +37,7 @@ interface ExitOrdersSignal {
     isLong: boolean;
     entryPx: number;
     pxDecimals: number;
-    szDecimals: number; // ADDED: szDecimals to ExitOrdersSignal
+    szDecimals: number;
     ts: number; // Timestamp when the signal was created
     totalQty: number; // The total quantity of the position for which exits are being placed
 
@@ -81,9 +83,7 @@ export const processPendingExitOrders = async () => {
             }
 
             const data: ExitOrdersSignal = JSON.parse(raw);
-            // Destructure relevant data from the signal
-            // FIX: Destructure szDecimals from data
-            const { isLong, entryPx, pxDecimals, szDecimals, tpPercents, stopLossPercent } = data;
+            const { isLong, entryPx, pxDecimals, szDecimals, ts, totalQty, tpPercents, stopLossPercent } = data;
 
             // Fetch current clearinghouse state to find the open position
             const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
@@ -104,9 +104,6 @@ export const processPendingExitOrders = async () => {
             // Get the current quantity of the open position
             const currentPositionQty = parseFloat(openPosition.position.szi);
 
-            // Cancel any stale GTC orders for this coin before placing new ones
-            // await cancelStaleGtc(hyperliquid, coin, subaccountAddress);
-
             // Determine minimum order size for this coin from metaMap
             const minSize = metaMap.get(coin)?.minSize ?? 0;
 
@@ -115,7 +112,25 @@ export const processPendingExitOrders = async () => {
 
             // Calculate quantities based on 25% of current position for each TP and runner
             const chunkQty = Number((currentPositionQty * 0.25).toFixed(szDecimals));
-            const runnerQty = Number((currentPositionQty * RUNNER_PCT).toFixed(szDecimals));
+
+            const runnerQty = Number((currentPositionQty * (RUNNER_PCT / 100)).toFixed(szDecimals));
+
+            const book = await hyperliquid.info.getL2Book(coin);
+            const [asks, bids] = book.levels;
+            const bestAsk = parseFloat(asks[0].px);
+            const bestBid = parseFloat(bids[0].px);
+
+            const currentMarketPrice = (bestAsk + bestBid) / 2;
+
+            const isPriceSane = (calculatedPx: number): boolean => {
+                if (calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) return false;
+                if (isNaN(currentMarketPrice) || currentMarketPrice === 0) {
+                    logWarn(`[ExitOrders] ⚠️ Current market price for ${coin} is invalid (${currentMarketPrice}). Skipping price sanity check.`);
+                    return true; // Cannot perform sanity check, assume sane for now
+                }
+                const deviation = Math.abs((calculatedPx - currentMarketPrice) / currentMarketPrice) * 100;
+                return deviation <= PRICE_TOLERANCE_PCT;
+            };
 
 
             // --- Place Take Profit Orders (TP1, TP2, TP3) ---
@@ -128,11 +143,10 @@ export const processPendingExitOrders = async () => {
                 if ((data[field] as ExitOrderStatus)?.placed) continue;
 
                 // Validate order quantity and price before placing
-                if (chunkQty < minSize || tidyPx <= 0 || tidyPx > MAX_PRICE_SANITY) {
-                    logError(`[ExitOrders] ❌ Invalid TP${i + 1} order for ${coin}: qty=${chunkQty} (minSize=${minSize}), px=${tidyPx}. Skipping.`);
-                    // Store the invalid state in updates and mark as placed:true so it doesn't block allDone
+                if (chunkQty < minSize || !isPriceSane(tidyPx)) {
+                    logError(`[ExitOrders] ❌ Invalid TP${i + 1} order for ${coin}: qty=${chunkQty} (minSize=${minSize}), px=${tidyPx} (sane=${isPriceSane(tidyPx)}). Skipping.`);
                     (updates[field] as ExitOrderStatus) = { price: tidyPx, qty: chunkQty, placed: true };
-                    continue; // Skip this specific TP order
+                    continue;
                 }
 
                 const tpOrder: OrderRequest = {
@@ -147,14 +161,15 @@ export const processPendingExitOrders = async () => {
                     grouping: 'positionTpsl', // Group orders for easy cancellation
                 };
 
-                // Retry placing the order with backoff
                 const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(tpOrder), 3, 1000, 2, `TP${i + 1} @ ${tidyPx}`);
+                const statusMessage = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
+
                 if (wasOrderAccepted(res)) {
-                    logInfo(`[ExitOrders] ✅ TP${i + 1} @ ${tidyPx} qty=${chunkQty} placed for ${coin}`);
-                    (updates[field] as ExitOrderStatus) = { price: tidyPx, qty: chunkQty, placed: true }; // Mark as placed
+                    logInfo(`[ExitOrders] ✅ TP${i + 1} @ ${tidyPx} qty=${chunkQty} is ${statusMessage} for ${coin}`);
+                    (updates[field] as ExitOrderStatus) = { price: tidyPx, qty: chunkQty, placed: true };
                 } else {
-                    logError(`[ExitOrders] ❌ TP${i + 1} @ ${tidyPx} failed for ${coin} → ${JSON.stringify(res?.response?.data?.statuses?.[0])}`);
-                    (updates[field] as ExitOrderStatus) = { price: tidyPx, qty: chunkQty, placed: false }; // Mark as not placed
+                    logError(`[ExitOrders] ❌ TP${i + 1} @ ${tidyPx} failed for ${coin} → ${statusMessage}`);
+                    (updates[field] as ExitOrderStatus) = { price: tidyPx, qty: chunkQty, placed: false };
                 }
             }
 
@@ -163,9 +178,9 @@ export const processPendingExitOrders = async () => {
                 const runnerPx = Number((isLong ? entryPx * (1 + RUNNER_PCT / 100) : entryPx * (1 - RUNNER_PCT / 100)).toFixed(pxDecimals));
 
                 // Validate runner order quantity and price
-                if (runnerQty < minSize || runnerPx <= 0 || runnerPx > MAX_PRICE_SANITY) {
-                    logError(`[ExitOrders] ❌ Invalid runner order for ${coin}: qty=${runnerQty} (minSize=${minSize}), px=${runnerPx}. Marking as skipped.`);
-                    (updates.runner as ExitOrderStatus) = { price: runnerPx, qty: runnerQty, placed: true }; // Mark as placed/skipped
+                if (runnerQty < minSize || !isPriceSane(runnerPx)) {
+                    logError(`[ExitOrders] ❌ Invalid runner order for ${coin}: qty=${runnerQty} (minSize=${minSize}), px=${runnerPx} (sane=${isPriceSane(runnerPx)}). Marking as skipped.`);
+                    (updates.runner as ExitOrderStatus) = { price: runnerPx, qty: runnerQty, placed: true };
                 } else {
                     const runnerOrder: OrderRequest = {
                         coin,
@@ -180,12 +195,14 @@ export const processPendingExitOrders = async () => {
                     };
 
                     const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(runnerOrder), 3, 1000, 2, `Runner TP @ ${runnerPx}`);
+                    const statusMessage = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
+
                     if (wasOrderAccepted(res)) {
-                        logInfo(`[ExitOrders] 🏃 Runner TP @ ${runnerPx} qty=${runnerQty} placed for ${coin}`);
-                        (updates.runner as ExitOrderStatus) = { price: runnerPx, qty: runnerQty, placed: true }; // Mark as placed
+                        logInfo(`[ExitOrders] 🏃 Runner TP @ ${runnerPx} qty=${runnerQty} is ${statusMessage} for ${coin}`);
+                        (updates.runner as ExitOrderStatus) = { price: runnerPx, qty: runnerQty, placed: true };
                     } else {
-                        logError(`[ExitOrders] ❌ Runner TP @ ${runnerPx} failed for ${coin} → ${JSON.stringify(res?.response?.data?.statuses?.[0])}`);
-                        (updates.runner as ExitOrderStatus) = { price: runnerPx, qty: runnerQty, placed: false }; // Mark as not placed
+                        logError(`[ExitOrders] ❌ Runner TP @ ${runnerPx} failed for ${coin} → ${statusMessage}`);
+                        (updates.runner as ExitOrderStatus) = { price: runnerPx, qty: runnerQty, placed: false };
                     }
                 }
             }
@@ -197,9 +214,9 @@ export const processPendingExitOrders = async () => {
                 // Validate SL order quantity and price. SL typically covers full position.
                 const slQty = Number(currentPositionQty.toFixed(szDecimals));
 
-                if (slQty < minSize || stopPxTidy <= 0 || stopPxTidy > MAX_PRICE_SANITY) {
-                    logError(`[ExitOrders] ❌ Invalid SL order for ${coin}: qty=${slQty} (minSize=${minSize}), px=${stopPxTidy}. Marking as skipped.`);
-                    (updates.sl as ExitOrderStatus) = { price: stopPxTidy, qty: slQty, placed: true }; // Mark as placed/skipped
+                if (slQty < minSize || !isPriceSane(stopPxTidy)) {
+                    logError(`[ExitOrders] ❌ Invalid SL order for ${coin}: qty=${slQty} (minSize=${minSize}), px=${stopPxTidy} (sane=${isPriceSane(stopPxTidy)}). Marking as skipped.`);
+                    (updates.sl as ExitOrderStatus) = { price: stopPxTidy, qty: slQty, placed: true };
                 } else {
                     const slOrder: OrderRequest = {
                         coin,
@@ -214,12 +231,14 @@ export const processPendingExitOrders = async () => {
                     };
 
                     const res = await retryWithBackoff(() => hyperliquid.exchange.placeOrder(slOrder), 3, 1000, 2, `SL @ ${stopPxTidy}`);
+                    const statusMessage = res?.response?.data?.statuses?.[0]?.status || JSON.stringify(res?.response?.data?.statuses?.[0]);
+
                     if (wasOrderAccepted(res)) {
-                        logInfo(`[ExitOrders] 🛑 SL @ ${stopPxTidy} qty=${slQty} placed for ${coin}`);
-                        (updates.sl as ExitOrderStatus) = { price: stopPxTidy, qty: slQty, placed: true }; // Mark as placed
+                        logInfo(`[ExitOrders] 🛑 SL @ ${stopPxTidy} qty=${slQty} is ${statusMessage} for ${coin}`);
+                        (updates.sl as ExitOrderStatus) = { price: stopPxTidy, qty: slQty, placed: true };
                     } else {
-                        logError(`[ExitOrders] ❌ SL @ ${stopPxTidy} failed for ${coin} → ${JSON.stringify(res?.response?.data?.statuses?.[0])}`);
-                        (updates.sl as ExitOrderStatus) = { price: stopPxTidy, qty: slQty, placed: false }; // Mark as not placed
+                        logError(`[ExitOrders] ❌ SL @ ${stopPxTidy} failed for ${coin} → ${statusMessage}`);
+                        (updates.sl as ExitOrderStatus) = { price: stopPxTidy, qty: slQty, placed: false };
                     }
                 }
             }
