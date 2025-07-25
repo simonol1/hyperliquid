@@ -20,6 +20,7 @@ logInfo(`✅ [Exits Bot] Connected to Hyperliquid`);
 
 // Maximum price sanity check to prevent erroneous orders
 const MAX_PRICE_SANITY = 100_000;
+const RUNNER_PCT = 25;
 
 // Interface to track the placement status of an individual exit order (TP/SL/Runner)
 interface ExitOrderStatus {
@@ -41,7 +42,6 @@ interface ExitOrdersSignal {
     // Percentages for Take Profit and Stop Loss levels.
     // IMPORTANT: These should be part of the data stored in Redis for each signal.
     tpPercents: number[];
-    runnerPercent: number; // This will now represent the _price_ target for the runner, not its quantity percentage
     stopLossPercent: number;
 
     // Status of individual exit orders
@@ -55,7 +55,7 @@ interface ExitOrdersSignal {
 // Helper to check if an order was accepted by Hyperliquid
 const wasOrderAccepted = (res: any): boolean => {
     const status = res?.response?.data?.statuses?.[0];
-    return res?.status === 'ok' && ['accepted', 'resting'].includes(status?.status);
+    return res?.status === 'ok' && ['accepted', 'resting', 'waitingForTrigger'].includes(status?.status);
 };
 
 // Build the metaMap once at startup
@@ -83,7 +83,7 @@ export const processPendingExitOrders = async () => {
             const data: ExitOrdersSignal = JSON.parse(raw);
             // Destructure relevant data from the signal
             // FIX: Destructure szDecimals from data
-            const { isLong, entryPx, pxDecimals, szDecimals, ts, totalQty, tpPercents, runnerPercent, stopLossPercent } = data;
+            const { isLong, entryPx, pxDecimals, szDecimals, tpPercents, stopLossPercent } = data;
 
             // Fetch current clearinghouse state to find the open position
             const perpState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
@@ -105,7 +105,7 @@ export const processPendingExitOrders = async () => {
             const currentPositionQty = parseFloat(openPosition.position.szi);
 
             // Cancel any stale GTC orders for this coin before placing new ones
-            await cancelStaleGtc(hyperliquid, coin, subaccountAddress);
+            // await cancelStaleGtc(hyperliquid, coin, subaccountAddress);
 
             // Determine minimum order size for this coin from metaMap
             const minSize = metaMap.get(coin)?.minSize ?? 0;
@@ -115,7 +115,7 @@ export const processPendingExitOrders = async () => {
 
             // Calculate quantities based on 25% of current position for each TP and runner
             const chunkQty = Number((currentPositionQty * 0.25).toFixed(szDecimals));
-            const runnerQty = Number((currentPositionQty * 0.25).toFixed(szDecimals));
+            const runnerQty = Number((currentPositionQty * RUNNER_PCT).toFixed(szDecimals));
 
 
             // --- Place Take Profit Orders (TP1, TP2, TP3) ---
@@ -160,7 +160,7 @@ export const processPendingExitOrders = async () => {
 
             // --- Place Runner Take Profit Order ---
             if (!(data.runner as ExitOrderStatus)?.placed) {
-                const runnerPx = Number((isLong ? entryPx * (1 + runnerPercent / 100) : entryPx * (1 - runnerPercent / 100)).toFixed(pxDecimals));
+                const runnerPx = Number((isLong ? entryPx * (1 + RUNNER_PCT / 100) : entryPx * (1 - RUNNER_PCT / 100)).toFixed(pxDecimals));
 
                 // Validate runner order quantity and price
                 if (runnerQty < minSize || runnerPx <= 0 || runnerPx > MAX_PRICE_SANITY) {
