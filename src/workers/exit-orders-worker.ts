@@ -1,10 +1,10 @@
 import { redis } from '../shared-utils/redis-client.js';
-import { logInfo, logError, logDebug, logWarn } from '../shared-utils/logger.js';
+import { logInfo, logError, logDebug, logWarn, logger } from '../shared-utils/logger.js'; // Import 'logger' itself
 import { Hyperliquid } from '../sdk/index.js';
 import { retryWithBackoff } from '../shared-utils/retry-order.js';
 import { OrderRequest } from '../sdk/index.js';
 import { updateBotErrorStatus, updateBotStatus } from '../shared-utils/healthcheck.js';
-import { cancelStaleGtc } from '../orders/cancel-gtc.js'; // This is for GTC, not trigger orders
+import { cancelStaleGtc } from '../orders/cancel-gtc.js';
 import { buildMetaMap, CoinMeta } from '../shared-utils/coin-meta.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET!;
@@ -98,6 +98,8 @@ export const processPendingExitOrders = async () => {
         return;
     }
 
+    // Log the logger's active level at the start of the processing loop
+    logInfo(`[ExitOrders] Logger active level: ${logger.level}`);
     logDebug(`[ExitOrders] Processing ${keys.length} pending exit order keys.`);
 
     for (const key of keys) {
@@ -137,8 +139,9 @@ export const processPendingExitOrders = async () => {
             const openPos = positionState.assetPositions.find(p => p.position.coin === coin && parseFloat(p.position?.szi ?? '0') > 0);
             if (!openPos) {
                 // If no open position is found and the signal has expired, clean up.
-                if (Date.now() - ts > 300_000) { // 5 minutes expiry
+                if ((Date.now() - ts) > 300_000) { // 5 minutes expiry
                     logWarn(` ⚠️ [ExitOrders] ❌ Expired: ${coin} TP/SL not placed in 5min (position not found). Deleting key.`);
+                    // Explicitly cancel all orders for this coin on the exchange
                     try {
                         await hyperliquid.custom.cancelAllOrders(coin);
                         logInfo(`[ExitOrders] ✅ Canceled all active orders for ${coin} due to expired signal and no position.`);
@@ -176,16 +179,22 @@ export const processPendingExitOrders = async () => {
 
             // Helper function for price validation against current market
             const isPriceSane = (calculatedPx: number): boolean => {
+                logInfo("HIT THIS METHOD --->>"); // Keep this to confirm entry
+                logInfo(`mid price is ${mid}`); // Keep this
+                // Log the logger's active level inside isPriceSane
+                logInfo(`[isPriceSane] Logger active level inside function: ${logger.level}`);
+
                 if (isNaN(calculatedPx) || !Number.isFinite(calculatedPx) || calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) {
-                    logInfo(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`);
+                    logInfo(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`); // Changed to logInfo for visibility
                     return false;
                 }
                 if (isNaN(mid) || mid === 0) {
-                    logInfo(`[ExitOrders] ⚠️ Current market price for ${coin} is invalid (${mid}). Skipping price sanity check.`);
+                    logWarn(`[ExitOrders] ⚠️ Current market price for ${coin} is invalid (${mid}). Skipping price sanity check.`);
                     return true; // Cannot perform sanity check, assume sane for now
                 }
                 const deviation = Math.abs((calculatedPx - mid) / mid) * 100;
-                logInfo(`[ExitOrders] Price sanity check for ${coin}: calculatedPx=${calculatedPx.toFixed(pxDecimals)}, mid=${mid.toFixed(pxDecimals)}, deviation=${deviation.toFixed(2)}% (tolerance=${PRICE_TOLERANCE_PCT}%)`); // NEW: Detailed debug log
+                // TEMPORARY: Changed to logInfo to ensure visibility. Will revert to logDebug later.
+                logInfo(`[ExitOrders] Price sanity check for ${coin}: calculatedPx=${calculatedPx.toFixed(pxDecimals)}, mid=${mid.toFixed(pxDecimals)}, deviation=${deviation.toFixed(2)}% (tolerance=${PRICE_TOLERANCE_PCT}%)`);
                 return deviation <= PRICE_TOLERANCE_PCT;
             };
 
@@ -211,9 +220,11 @@ export const processPendingExitOrders = async () => {
                     coin,
                     is_buy: !isLong,
                     sz: qty,
+                    // Pass limit_px as a string formatted to pxDecimals
                     limit_px: px.toFixed(pxDecimals),
                     order_type: {
                         trigger: {
+                            // Pass triggerPx as a string formatted to pxDecimals
                             triggerPx: px.toFixed(pxDecimals),
                             isMarket: true,
                             tpsl
@@ -273,7 +284,7 @@ export const processPendingExitOrders = async () => {
 
             // --- Place Runner Take Profit Order ---
             if (!data.runner?.placed) {
-                // Use runnerPercent from data for price calculation
+                // Use runnerPercent from data for data for price calculation
                 const rawPx = isLong ? entryPx * (1 + runnerPercent / 100) : entryPx * (1 - runnerPercent / 100);
                 const px = getTidyPx(rawPx, pxDecimals); // Ensure px is tidied and a number
 
