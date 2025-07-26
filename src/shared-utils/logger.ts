@@ -14,9 +14,7 @@ if (!fs.existsSync(logsDir)) {
 
 const logFilePath = path.join(logsDir, `trades_${today}.log`);
 
-// FIX: Read LOG_LEVEL from environment variable, default to 'info' if not set
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
-console.log(LOG_LEVEL, "LOG_LEVEL")
 
 export const logger = pino(
   {

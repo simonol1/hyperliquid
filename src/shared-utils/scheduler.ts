@@ -22,7 +22,7 @@ export const scheduleGlobalHeartbeat = () => {
             return;
         }
 
-        const components = ['trend', 'breakout', 'reversion', 'orchestrator', 'exit-orders-worker'];
+        const components = ['trend', 'breakout', 'reversion', 'orchestrator', 'exits'];
 
         const statuses = await Promise.all(
             components.map(bot => redis.get(`status:${bot}`))

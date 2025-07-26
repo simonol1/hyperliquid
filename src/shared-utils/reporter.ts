@@ -1,5 +1,5 @@
 import { sendTelegramMessage, summaryChatId, escapeMarkdown } from '../shared-utils/telegram.js';
-import { logInfo, logError } from '../shared-utils/logger.js';
+import { logInfo, logError, logDebug } from '../shared-utils/logger.js'; // Ensure logDebug is imported
 import cron from 'node-cron';
 import { TradeRecord, TradeTracker } from '../shared-utils/trade-tracker.js';
 
@@ -9,6 +9,10 @@ const buildPnLSummary = (
     tradesByBot: Record<string, TradeRecord[]>,
     activeTrades: TradeRecord[]
 ): string => {
+    // NEW: Log the raw data received by buildPnLSummary for debugging
+    logDebug(`[Reporter] Raw tradesByBot: ${JSON.stringify(tradesByBot, null, 2)}`);
+    logDebug(`[Reporter] Raw activeTrades: ${JSON.stringify(activeTrades, null, 2)}`);
+
     const summaryLines = ['📊 *Twice Daily Summary*'];
 
     let hasAnyClosed = false;
@@ -64,17 +68,21 @@ export const schedulePnLSummaryEvery4Hours = () => {
         for (const bot of bots) {
             try {
                 tradesByBot[bot] = await TradeTracker.getClosedTrades(bot, since);
-            } catch (err) {
-                logError(`[Reporter] ❌ Error fetching closed trades for ${bot}: ${err}`);
+            } catch (err: any) { // Explicitly type err as any
+                logError(`[Reporter] ❌ Error fetching closed trades for ${bot}: ${err.message || JSON.stringify(err)}`);
                 tradesByBot[bot] = [];
             }
         }
 
-        const activeTrades = await TradeTracker.getOpenTrades();
-        const summary = buildPnLSummary(tradesByBot, activeTrades);
+        try {
+            const activeTrades = await TradeTracker.getOpenTrades();
+            const summary = buildPnLSummary(tradesByBot, activeTrades);
 
-        await sendTelegramMessage(summary, summaryChatId);
-        logInfo(`[Reporter] ✅ Sent 4-hour PnL and Active Trades summary`);
+            await sendTelegramMessage(summary, summaryChatId);
+            logInfo(`[Reporter] ✅ Sent 4-hour PnL and Active Trades summary`);
+        } catch (err: any) { // Explicitly type err as any
+            logError(`[Reporter] ❌ Error building or sending PnL summary: ${err.message || JSON.stringify(err)}`);
+        }
     });
 
     logInfo(`🕓 4-hourly PnL report scheduled`);

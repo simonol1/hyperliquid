@@ -4,7 +4,6 @@ import { Hyperliquid } from '../sdk/index.js';
 import { retryWithBackoff } from '../shared-utils/retry-order.js';
 import { OrderRequest } from '../sdk/index.js';
 import { updateBotErrorStatus, updateBotStatus } from '../shared-utils/healthcheck.js';
-import { cancelStaleGtc } from '../orders/cancel-gtc.js';
 import { buildMetaMap, CoinMeta } from '../shared-utils/coin-meta.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET!;
@@ -98,8 +97,6 @@ export const processPendingExitOrders = async () => {
         return;
     }
 
-    // Log the logger's active level at the start of the processing loop
-    logInfo(`[ExitOrders] Logger active level: ${logger.level}`);
     logDebug(`[ExitOrders] Processing ${keys.length} pending exit order keys.`);
 
     for (const key of keys) {
@@ -135,19 +132,23 @@ export const processPendingExitOrders = async () => {
                 continue;
             }
 
+            // Proactively cancel all orders for this coin at the start of processing its key.
+            // This helps prevent duplicate orders if previous attempts failed or if there are lingering orders.
+            try {
+                await hyperliquid.custom.cancelAllOrders(coin);
+                logDebug(`[ExitOrders] ✅ Canceled existing orders for ${coin} before placing new TP/SL.`);
+            } catch (cancelErr: any) {
+                // Log but don't stop if cancellation fails, as new orders might still be placed.
+                logWarn(`[ExitOrders] ⚠️ Failed to cancel existing orders for ${coin} before placing new TP/SL: ${cancelErr.message || JSON.stringify(cancelErr)}`);
+            }
+
             const positionState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
             const openPos = positionState.assetPositions.find(p => p.position.coin === coin && parseFloat(p.position?.szi ?? '0') > 0);
             if (!openPos) {
                 // If no open position is found and the signal has expired, clean up.
                 if ((Date.now() - ts) > 300_000) { // 5 minutes expiry
                     logWarn(` ⚠️ [ExitOrders] ❌ Expired: ${coin} TP/SL not placed in 5min (position not found). Deleting key.`);
-                    // Explicitly cancel all orders for this coin on the exchange
-                    try {
-                        await hyperliquid.custom.cancelAllOrders(coin);
-                        logInfo(`[ExitOrders] ✅ Canceled all active orders for ${coin} due to expired signal and no position.`);
-                    } catch (cancelErr: any) {
-                        logError(`[ExitOrders] ❌ Failed to cancel orders for ${coin}: ${cancelErr.message || JSON.stringify(cancelErr)}`);
-                    }
+                    // Orders were already cancelled above, so no need to cancel again here.
                     await redis.del(key); // Delete Redis key after attempting cancellation
                 } else {
                     logDebug(`[ExitOrders] ⏳ Awaiting position open for ${coin}. Signal timestamp: ${new Date(ts).toISOString()}`);

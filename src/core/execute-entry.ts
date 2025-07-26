@@ -1,4 +1,4 @@
-import { logInfo, logWarn, logDebug, logError } from '../shared-utils/logger.js'; // Ensure logDebug and logError are imported
+import { logInfo, logWarn, logDebug, logError } from '../shared-utils/logger.js';
 import { placeOrderSafe } from '../orders/place-order-safe.js';
 import type { Hyperliquid } from '../sdk/index.js';
 import type { TradeSignal } from '../shared-utils/types.js';
@@ -8,6 +8,7 @@ import type { PositionSizingResult } from '../shared-utils/position-size.js';
 import { checkRiskGuards } from '../shared-utils/risk-guards.js';
 import { setTrackedPosition } from '../shared-utils/tracked-position.js';
 import { redis } from '../shared-utils/redis-client.js';
+import { TradeTracker } from '../shared-utils/trade-tracker.js';
 
 export const executeEntry = async (
     hyperliquid: Hyperliquid,
@@ -26,6 +27,26 @@ export const executeEntry = async (
 
     const isLong = signal.side === 'LONG';
 
+    // Push signal to TradeTracker at the very beginning of trade execution
+    let tradeRecordId: string | undefined;
+    try {
+        const newTradeRecord = await TradeTracker.pushSignal({
+            bot: config.strategy, // Use the strategy name as the bot identifier
+            coin: signal.coin,
+            side: signal.side as 'LONG' | 'SHORT',
+            entryPrice: signal.entryPrice,
+            strength: signal.strength,
+            vault: config.subaccountAddress,
+            rawSignal: signal // Store the full signal for debugging/analysis
+        });
+        tradeRecordId = newTradeRecord.id;
+        logDebug(`[ExecuteEntry] Trade signal pushed to TradeTracker with ID: ${tradeRecordId}`);
+    } catch (err: any) {
+        logError(`[ExecuteEntry] ❌ Failed to push trade signal to TradeTracker for ${coin}: ${err.message || JSON.stringify(err)}`);
+        // Decide if you want to abort the trade if TradeTracker fails. For now, we continue.
+    }
+
+
     const { canTrade, qty: safeQty } = await checkRiskGuards(
         hyperliquid,
         config.subaccountAddress,
@@ -36,6 +57,11 @@ export const executeEntry = async (
 
     if (!canTrade) {
         logInfo(`[ExecuteEntry] Entry for ${coin} blocked by risk guards.`);
+        // Mark trade as failed if it's blocked by risk guards
+        if (tradeRecordId) {
+            await TradeTracker.markFailed(tradeRecordId);
+            logDebug(`[ExecuteEntry] Trade ${tradeRecordId} marked as failed due to risk guards.`);
+        }
         return;
     }
 
@@ -50,6 +76,11 @@ export const executeEntry = async (
         logDebug(`[ExecuteEntry] Updated leverage to ${risk.leverage}x for ${coin}.`);
     } catch (err: any) {
         logError(`[ExecuteEntry] ❌ Failed to update leverage for ${coin}: ${err.message || JSON.stringify(err)}`);
+        // NEW: Mark trade as failed if leverage update fails
+        if (tradeRecordId) {
+            await TradeTracker.markFailed(tradeRecordId);
+            logDebug(`[ExecuteEntry] Trade ${tradeRecordId} marked as failed due to leverage update failure.`);
+        }
         return; // Exit if leverage update fails
     }
 
@@ -67,6 +98,11 @@ export const executeEntry = async (
 
     if (!success) {
         logError(`[ExecuteEntry] ❌ Failed to place entry order for ${coin}.`);
+        // NEW: Mark trade as failed if order placement fails
+        if (tradeRecordId) {
+            await TradeTracker.markFailed(tradeRecordId);
+            logDebug(`[ExecuteEntry] Trade ${tradeRecordId} marked as failed due to order placement failure.`);
+        }
         return;
     }
 
@@ -85,7 +121,27 @@ export const executeEntry = async (
     const runnerPercent = config.runnerPct;
     const stopLossPercent = config.stopLossPct;
 
-    // NEW: Add detailed logging around Redis set operation
+    if (tradeRecordId) {
+        try {
+            await TradeTracker.markConfirmed(tradeRecordId, tidyQty, risk.leverage, {
+                takeProfitTarget: isLong
+                    ? entryPrice * (1 + tpPercents[tpPercents.length - 1] / 100)
+                    : entryPrice * (1 - tpPercents[tpPercents.length - 1] / 100),
+                trailingStopTarget: isLong
+                    ? entryPrice * (1 - config.trailingStopPct / 100)
+                    : entryPrice * (1 + config.trailingStopPct / 100),
+                trailingStopActive: true,
+                trailingStopPct: config.trailingStopPct,
+                highestPrice: entryPrice, // Initial highest price is entry price
+            });
+            logDebug(`[ExecuteEntry] Trade ${tradeRecordId} marked as confirmed in TradeTracker.`);
+        } catch (err: any) {
+            logError(`[ExecuteEntry] ❌ Failed to mark trade ${tradeRecordId} as confirmed in TradeTracker: ${err.message || JSON.stringify(err)}`);
+        }
+    }
+
+
+    // Add detailed logging around Redis set operation for pendingExitOrders
     const pendingExitSignal = {
         coin,
         isLong,
@@ -114,7 +170,9 @@ export const executeEntry = async (
     }
 
     try {
+        // setTrackedPosition is still used for the active position tracking logic (trailing stop, breakeven)
         await setTrackedPosition(coin, {
+            tradeId: tradeRecordId!, // Pass the tradeRecordId here
             qty: tidyQty,
             leverage: risk.leverage,
             entryPrice,
