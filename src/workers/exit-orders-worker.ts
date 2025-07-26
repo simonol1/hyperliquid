@@ -173,21 +173,19 @@ export const processPendingExitOrders = async () => {
             const bestAsk = parseFloat(asks[0].px);
             const bestBid = parseFloat(bids[0].px);
             const mid = (bestAsk + bestBid) / 2;
-            logInfo(`mid price is ${mid}`)
 
             // Helper function for price validation against current market
             const isPriceSane = (calculatedPx: number): boolean => {
-                logInfo("HIT THIS METHOD --->>")
                 if (isNaN(calculatedPx) || !Number.isFinite(calculatedPx) || calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) {
-                    logDebug(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`);
+                    logInfo(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`);
                     return false;
                 }
                 if (isNaN(mid) || mid === 0) {
-                    logWarn(`[ExitOrders] ⚠️ Current market price for ${coin} is invalid (${mid}). Skipping price sanity check.`);
+                    logInfo(`[ExitOrders] ⚠️ Current market price for ${coin} is invalid (${mid}). Skipping price sanity check.`);
                     return true; // Cannot perform sanity check, assume sane for now
                 }
                 const deviation = Math.abs((calculatedPx - mid) / mid) * 100;
-                logDebug(`[ExitOrders] Price sanity check for ${coin}: calculatedPx=${calculatedPx.toFixed(pxDecimals)}, mid=${mid.toFixed(pxDecimals)}, deviation=${deviation.toFixed(2)}% (tolerance=${PRICE_TOLERANCE_PCT}%)`); // NEW: Detailed debug log
+                logInfo(`[ExitOrders] Price sanity check for ${coin}: calculatedPx=${calculatedPx.toFixed(pxDecimals)}, mid=${mid.toFixed(pxDecimals)}, deviation=${deviation.toFixed(2)}% (tolerance=${PRICE_TOLERANCE_PCT}%)`); // NEW: Detailed debug log
                 return deviation <= PRICE_TOLERANCE_PCT;
             };
 
