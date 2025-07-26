@@ -17,7 +17,7 @@ if (!fs.existsSync(logsDir)) {
 const logFilePath = path.join(logsDir, `trades_${today}.log`);
 
 // === Log level (env or default)
-const LOG_LEVEL = 'debug'
+const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
 
 export const logger = pino(
   {
