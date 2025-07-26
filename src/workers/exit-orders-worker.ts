@@ -161,9 +161,6 @@ export const processPendingExitOrders = async () => {
                 continue;
             }
 
-            // Re-enabled: Cancel any stale GTC orders for this coin before placing new ones
-            await cancelStaleGtc(hyperliquid, coin, subaccountAddress);
-
             const minSize = meta.minSize;
             // Quantities are 25% of current position, correctly calculated
             const chunkQty = getTidyQty(currentPositionQty * 0.25, szDecimals);
@@ -179,13 +176,9 @@ export const processPendingExitOrders = async () => {
 
             // Helper function for price validation against current market
             const isPriceSane = (calculatedPx: number): boolean => {
-                logInfo("HIT THIS METHOD --->>"); // Keep this to confirm entry
-                logInfo(`mid price is ${mid}`); // Keep this
-                // Log the logger's active level inside isPriceSane
-                logInfo(`[isPriceSane] Logger active level inside function: ${logger.level}`);
 
                 if (isNaN(calculatedPx) || !Number.isFinite(calculatedPx) || calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) {
-                    logInfo(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`); // Changed to logInfo for visibility
+                    logDebug(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`);
                     return false;
                 }
                 if (isNaN(mid) || mid === 0) {
@@ -193,8 +186,7 @@ export const processPendingExitOrders = async () => {
                     return true; // Cannot perform sanity check, assume sane for now
                 }
                 const deviation = Math.abs((calculatedPx - mid) / mid) * 100;
-                // TEMPORARY: Changed to logInfo to ensure visibility. Will revert to logDebug later.
-                logInfo(`[ExitOrders] Price sanity check for ${coin}: calculatedPx=${calculatedPx.toFixed(pxDecimals)}, mid=${mid.toFixed(pxDecimals)}, deviation=${deviation.toFixed(2)}% (tolerance=${PRICE_TOLERANCE_PCT}%)`);
+                logDebug(`[ExitOrders] Price sanity check for ${coin}: calculatedPx=${calculatedPx.toFixed(pxDecimals)}, mid=${mid.toFixed(pxDecimals)}, deviation=${deviation.toFixed(2)}% (tolerance=${PRICE_TOLERANCE_PCT}%)`);
                 return deviation <= PRICE_TOLERANCE_PCT;
             };
 
@@ -247,7 +239,7 @@ export const processPendingExitOrders = async () => {
                 const statusMessage = statusObj?.status || JSON.stringify(statusObj);
 
                 if (wasOrderAccepted(statusObj)) { // Check statusObj directly
-                    logInfo(`[ExitOrders] ✅ ${label} @ ${px.toFixed(pxDecimals)} qty=${qty} is ${statusMessage} for ${coin}`);
+                    logInfo(`[ExitOrders] ✅ ${label} @ ${px.toFixed(pxDecimals)} qty=${qty} is \"${statusMessage}\" for ${coin}`);
                     return { status: statusMessage, placed: true };
                 } else {
                     logError(`[ExitOrders] ❌ ${label} @ ${px.toFixed(pxDecimals)} failed for ${coin} → ${statusMessage}`);
@@ -338,4 +330,14 @@ export const processPendingExitOrders = async () => {
     }
 };
 
-setInterval(processPendingExitOrders, 5000);
+const runWorker = async () => {
+    try {
+        await processPendingExitOrders();
+    } catch (error: any) {
+        logError(`[ExitOrders] Unhandled error in worker loop: ${error.message || JSON.stringify(error)}`);
+    } finally {
+        setTimeout(runWorker, 5000); // Schedule next run after current one completes
+    }
+};
+
+runWorker(); // Initial call to start the loop

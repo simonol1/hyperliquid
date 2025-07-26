@@ -122,7 +122,6 @@ services:
       - REDIS_URL=redis://redis:6379
       - BOT_NAME=EXIT
       - NODE_OPTIONS=--dns-result-order=ipv4first
-      - LOG_LEVEL=debug
     command: ["node", "dist/exits.mjs"]
     depends_on:
       - redis
