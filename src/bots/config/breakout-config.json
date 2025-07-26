@@ -6,7 +6,6 @@
     "SOL-PERP",
     "ARB-PERP",
     "LINK-PERP",
-    "XRP-PERP",
     "SUI-PERP",
     "WLD-PERP",
     "DOGE-PERP",
@@ -68,11 +67,6 @@
       "timeframe": "30m",
       "lookback": 40,
       "minVolumeUsd": 50000
-    },
-    "XRP-PERP": {
-      "timeframe": "1h",
-      "lookback": 45,
-      "minVolumeUsd": 60000
     },
     "SUI-PERP": {
       "timeframe": "30m",

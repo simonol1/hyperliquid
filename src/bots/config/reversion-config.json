@@ -6,7 +6,6 @@
     "SOL-PERP",
     "ARB-PERP",
     "LINK-PERP",
-    "XRP-PERP",
     "APT-PERP",
     "DOGE-PERP",
     "AVAX-PERP",
@@ -70,11 +69,6 @@
       "timeframe": "1h",
       "lookback": 30,
       "minVolumeUsd": 50000
-    },
-    "XRP-PERP": {
-      "timeframe": "1h",
-      "lookback": 35,
-      "minVolumeUsd": 60000
     },
     "APT-PERP": {
       "timeframe": "15m",

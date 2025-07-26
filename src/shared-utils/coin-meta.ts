@@ -56,7 +56,6 @@ export const COIN_META: Record<string, { pxDecimals: number; minVlmUsd: number; 
 
     // Meme coins
     "DOGE-PERP": { pxDecimals: 5, minVlmUsd: 1_000_000, minSize: 5 },
-    "XRP-PERP": { pxDecimals: 5, minVlmUsd: 1_000_000, minSize: 5 },
     "SHIB-PERP": { pxDecimals: 8, minVlmUsd: 500_000, minSize: 100000 },
     "PEPE-PERP": { pxDecimals: 8, minVlmUsd: 500_000, minSize: 100000 },
     "FLOKI-PERP": { pxDecimals: 8, minVlmUsd: 500_000, minSize: 100000 },
