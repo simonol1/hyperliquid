@@ -1,4 +1,4 @@
-import { logInfo, logWarn } from '../shared-utils/logger.js';
+import { logInfo, logWarn, logDebug, logError } from '../shared-utils/logger.js'; // Ensure logDebug and logError are imported
 import { placeOrderSafe } from '../orders/place-order-safe.js';
 import type { Hyperliquid } from '../sdk/index.js';
 import type { TradeSignal } from '../shared-utils/types.js';
@@ -16,13 +16,12 @@ export const executeEntry = async (
     coinMeta: CoinMeta,
     risk: PositionSizingResult,
 ) => {
-    const { coin, pxDecimals, szDecimals, minSize } = coinMeta; // Destructure minSize from coinMeta
+    const { coin, pxDecimals, szDecimals, minSize } = coinMeta;
     const rawQty = (risk.capitalRiskUsd * risk.leverage) / signal.entryPrice;
 
-    // Pre-check minSize before calling checkRiskGuards to prevent tiny orders
     if (rawQty < minSize) {
         logWarn(`[ExecuteEntry] ⚠️ Initial calculated quantity (${rawQty.toFixed(szDecimals)}) for ${coin} is below minSize (${minSize}). Skipping entry.`);
-        return; // Do not proceed with the trade
+        return;
     }
 
     const isLong = signal.side === 'LONG';
@@ -35,47 +34,65 @@ export const executeEntry = async (
         coinMeta
     );
 
-    if (!canTrade) return;
+    if (!canTrade) {
+        logInfo(`[ExecuteEntry] Entry for ${coin} blocked by risk guards.`);
+        return;
+    }
 
     const tidyQty = Number(safeQty.toFixed(szDecimals));
 
-    await hyperliquid.exchange.updateLeverage(
-        coin,
-        'isolated',
-        risk.leverage
-    );
+    try {
+        await hyperliquid.exchange.updateLeverage(
+            coin,
+            'isolated',
+            risk.leverage
+        );
+        logDebug(`[ExecuteEntry] Updated leverage to ${risk.leverage}x for ${coin}.`);
+    } catch (err: any) {
+        logError(`[ExecuteEntry] ❌ Failed to update leverage for ${coin}: ${err.message || JSON.stringify(err)}`);
+        return; // Exit if leverage update fails
+    }
 
-    const { success } = await placeOrderSafe(
+
+    const { success, px, tif } = await placeOrderSafe(
         hyperliquid,
         coin,
         isLong,
         tidyQty,
-        false,
-        'Ioc',
+        false, // not reduceOnly for entry
+        'Ioc', // Attempt IOC first
         config.subaccountAddress,
         pxDecimals
     );
 
-    if (!success) return;
+    if (!success) {
+        logError(`[ExecuteEntry] ❌ Failed to place entry order for ${coin}.`);
+        return;
+    }
 
-    const { entryPrice } = signal; // atr and strength are not needed for exit order queueing
+    // If the order was placed as GTC and is resting, it means it's not immediately filled.
+    // The exit-orders-worker should still queue TP/SL, but the position might not be
+    // immediately visible on the exchange.
+    if (tif === 'Gtc') {
+        logInfo(`[ExecuteEntry] ⏳ Entry order for ${coin} placed as GTC and is resting. Waiting for fill.`);
+    } else {
+        logInfo(`[ExecuteEntry] ✅ Entry order for ${coin} placed successfully.`);
+    }
 
-    // Define TP percentages from config
-    const tpPercents = config.takeProfitPercents
+    const { entryPrice } = signal;
 
-    // Define runner and stop loss percentages from config
+    const tpPercents = config.takeProfitPercents || [2, 4, 6];
     const runnerPercent = config.runnerPct;
     const stopLossPercent = config.stopLossPct;
 
-    // Queue SL and TP orders to ensure that order is filled to avoid rejection
-    // FIX: Ensure totalQty, szDecimals, and runnerPercent are correctly passed to Redis
-    await redis.set(`pendingExitOrders:${coin}`, JSON.stringify({
+    // NEW: Add detailed logging around Redis set operation
+    const pendingExitSignal = {
         coin,
         isLong,
         totalQty: tidyQty,
         entryPx: entryPrice,
         pxDecimals,
-        szDecimals, // Added: Pass szDecimals to the worker
+        szDecimals,
         tpPercents,
         runnerPercent,
         stopLossPercent,
@@ -85,27 +102,41 @@ export const executeEntry = async (
         tp3: { price: 0, qty: 0, placed: false },
         runner: { price: 0, qty: 0, placed: false },
         sl: { price: 0, qty: 0, placed: false },
-    }), { EX: 90 }); // Expires in 90 seconds if not processed
+    };
 
-    await setTrackedPosition(coin, {
-        qty: tidyQty,
-        leverage: risk.leverage,
-        entryPrice,
-        isLong,
-        takeProfitLevels: tpPercents,
-        takeProfitHit: [],
-        breakevenTriggered: false,
-        takeProfitTarget: isLong
-            ? entryPrice * (1 + tpPercents[tpPercents.length - 1] / 100)
-            : entryPrice * (1 - tpPercents[tpPercents.length - 1] / 100),
-        trailingStopTarget: isLong
-            ? entryPrice * (1 - config.trailingStopPct / 100)
-            : entryPrice * (1 + config.trailingStopPct / 100),
-        trailingStopActive: true,
-        trailingStopPct: config.trailingStopPct,
-        highestPrice: entryPrice,
-        openedAt: Date.now(),
-    });
+    try {
+        logDebug(`[ExecuteEntry] Attempting to set pendingExitOrders key for ${coin} in Redis.`);
+        const redisSetResult = await redis.set(`pendingExitOrders:${coin}`, JSON.stringify(pendingExitSignal), { EX: 300 }); // Expires in 300 seconds (5 minutes)
+        logInfo(`[ExecuteEntry] ✅ Pending exit orders key for ${coin} set in Redis. Result: ${redisSetResult}`);
+    } catch (redisErr: any) {
+        logError(`[ExecuteEntry] ❌ Failed to set pendingExitOrders key for ${coin} in Redis: ${redisErr.message || JSON.stringify(redisErr)}`);
+        // Consider if you want to abort the trade or alert if Redis fails here
+    }
+
+    try {
+        await setTrackedPosition(coin, {
+            qty: tidyQty,
+            leverage: risk.leverage,
+            entryPrice,
+            isLong,
+            takeProfitLevels: tpPercents,
+            takeProfitHit: [],
+            breakevenTriggered: false,
+            takeProfitTarget: isLong
+                ? entryPrice * (1 + tpPercents[tpPercents.length - 1] / 100)
+                : entryPrice * (1 - tpPercents[tpPercents.length - 1] / 100),
+            trailingStopTarget: isLong
+                ? entryPrice * (1 - config.trailingStopPct / 100)
+                : entryPrice * (1 + config.trailingStopPct / 100),
+            trailingStopActive: true,
+            trailingStopPct: config.trailingStopPct,
+            highestPrice: entryPrice,
+            openedAt: Date.now(),
+        });
+        logDebug(`[ExecuteEntry] Tracked position for ${coin} set in Redis.`);
+    } catch (trackedPosErr: any) {
+        logError(`[ExecuteEntry] ❌ Failed to set tracked position for ${coin} in Redis: ${trackedPosErr.message || JSON.stringify(trackedPosErr)}`);
+    }
 
     logInfo(`[ExecuteEntry] ✅ Placed ${coin} qty=${tidyQty}`);
 };
