@@ -173,9 +173,11 @@ export const processPendingExitOrders = async () => {
             const bestAsk = parseFloat(asks[0].px);
             const bestBid = parseFloat(bids[0].px);
             const mid = (bestAsk + bestBid) / 2;
+            logInfo(`mid price is ${mid}`)
 
             // Helper function for price validation against current market
             const isPriceSane = (calculatedPx: number): boolean => {
+                logInfo("HIT THIS METHOD --->>")
                 if (isNaN(calculatedPx) || !Number.isFinite(calculatedPx) || calculatedPx <= 0 || calculatedPx > MAX_PRICE_SANITY) {
                     logDebug(`[ExitOrders] Price sanity check failed for ${coin}: calculatedPx=${calculatedPx} (invalid number or out of absolute range).`);
                     return false;

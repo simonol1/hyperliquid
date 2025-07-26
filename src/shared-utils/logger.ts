@@ -4,8 +4,6 @@ import pino from 'pino';
 import type { Analysis } from './analyse-asset';
 import { errorsChatId, sendTelegramMessage } from './telegram';
 
-// const LOG_PREFIX = `[${process.env.BOT_NAME}]`;
-
 // === File setup ===
 const today = new Date().toISOString().split('T')[0];
 const logsDir = path.resolve('logs');
@@ -16,8 +14,8 @@ if (!fs.existsSync(logsDir)) {
 
 const logFilePath = path.join(logsDir, `trades_${today}.log`);
 
-// === Log level (env or default)
-const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
+// FIX: Read LOG_LEVEL from environment variable, default to 'info' if not set
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
 export const logger = pino(
   {
@@ -70,7 +68,7 @@ export const logTrade = ({
   leverage: number;
   strength: number;
 }) => {
-  const line = `[TRADE] ${asset} ${side} ${qty.toFixed(4)} @ $${price.toFixed(
+  const line = `[TRADE] ${asset} ${qty.toFixed(4)} ${side} @ $${price.toFixed(
     2
   )} | L:${leverage}x | Strength: ${strength}`;
   logger.info(line);
