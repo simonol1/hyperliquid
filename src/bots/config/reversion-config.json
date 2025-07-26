@@ -21,8 +21,8 @@
   "macdFastPeriod": 12,
   "macdSlowPeriod": 26,
   "macdSignalPeriod": 9,
-  "rsiOverboughtThreshold": 75,
-  "rsiOversoldThreshold": 25,
+  "rsiOverboughtThreshold": 70,
+  "rsiOversoldThreshold": 30,
   "trailingStopPct": 2,
   "takeProfitPercents": [
     3,

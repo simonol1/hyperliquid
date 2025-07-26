@@ -4,7 +4,7 @@ import { Hyperliquid } from '../sdk/index.js';
 import { retryWithBackoff } from '../shared-utils/retry-order.js';
 import { OrderRequest } from '../sdk/index.js';
 import { updateBotErrorStatus, updateBotStatus } from '../shared-utils/healthcheck.js';
-import { cancelStaleGtc } from '../orders/cancel-gtc.js';
+import { cancelStaleGtc } from '../orders/cancel-gtc.js'; // This is for GTC, not trigger orders
 import { buildMetaMap, CoinMeta } from '../shared-utils/coin-meta.js';
 
 const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT_WALLET!;
@@ -136,10 +136,16 @@ export const processPendingExitOrders = async () => {
             const positionState = await hyperliquid.info.perpetuals.getClearinghouseState(subaccountAddress);
             const openPos = positionState.assetPositions.find(p => p.position.coin === coin && parseFloat(p.position?.szi ?? '0') > 0);
             if (!openPos) {
-                // Only delete if the signal is old, otherwise wait for position to open
-                if (Date.now() - ts > 60_000) { // 60 seconds expiry
-                    logWarn(` ⚠️ [ExitOrders] ❌ Expired: ${coin} TP/SL not placed in 60s (position not found). Deleting key.`);
-                    await redis.del(key);
+                // If no open position is found and the signal has expired, clean up.
+                if (Date.now() - ts > 300_000) { // 5 minutes expiry
+                    logWarn(` ⚠️ [ExitOrders] ❌ Expired: ${coin} TP/SL not placed in 5min (position not found). Deleting key.`);
+                    try {
+                        await hyperliquid.custom.cancelAllOrders(coin);
+                        logInfo(`[ExitOrders] ✅ Canceled all active orders for ${coin} due to expired signal and no position.`);
+                    } catch (cancelErr: any) {
+                        logError(`[ExitOrders] ❌ Failed to cancel orders for ${coin}: ${cancelErr.message || JSON.stringify(cancelErr)}`);
+                    }
+                    await redis.del(key); // Delete Redis key after attempting cancellation
                 } else {
                     logDebug(`[ExitOrders] ⏳ Awaiting position open for ${coin}. Signal timestamp: ${new Date(ts).toISOString()}`);
                 }
@@ -205,11 +211,9 @@ export const processPendingExitOrders = async () => {
                     coin,
                     is_buy: !isLong,
                     sz: qty,
-                    // FIX: Pass limit_px as a string formatted to pxDecimals
                     limit_px: px.toFixed(pxDecimals),
                     order_type: {
                         trigger: {
-                            // FIX: Pass triggerPx as a string formatted to pxDecimals
                             triggerPx: px.toFixed(pxDecimals),
                             isMarket: true,
                             tpsl
